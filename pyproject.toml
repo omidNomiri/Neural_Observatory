@@ -3,7 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+<<<<<<< HEAD
 name = "Neural_Observatory"
+=======
+name = "neural-observatory"
+>>>>>>> 0e88f5f4fe4b204042b9e7c4b761d7946c867a8c
 version = "0.1.0b1"
 description = "A tool for neural network observability and diagnostics for PyTorch"
 readme = "README.md"
