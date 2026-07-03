@@ -2,7 +2,7 @@
 Neural Observatory
 ==================
 
-Research-grade neural network observability, diagnostics, and analysis framework for PyTorch.
+neural network observability, diagnostics, and analysis framework for PyTorch.
 """
 
 from .observatory import Observatory
