@@ -100,18 +100,8 @@ obs.console_report()
 
 ## Installation
 
-### From Source
-
 ```bash
-git clone https://github.com/omidNomiri/Neural_Observatory.git
-cd Neural_Observatory
-pip install -e .
-```
-
-### With Development Tools
-
-```bash
-pip install -e ".[dev]"
+pip install neural-observatory
 ```
 
 ## Documentation
