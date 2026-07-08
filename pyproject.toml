@@ -1,17 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "neural-observatory"
 version = "0.1.0b1"
 description = "Neural network observability toolkit for PyTorch"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Omid Nomiri", email = "omidnomiri@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -19,9 +23,29 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12"
 ]
+dependencies = [
+    "torch>=1.9.0",
+    "numpy>=1.19.0",
+]
 
-[tool.setuptools]
-packages = ["neural_observatory"]
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.10",
+    "black>=21.0",
+    "isort>=5.0",
+    "flake8>=3.9",
+    "mypy>=0.900",
+]
+docs = [
+    "sphinx>=4.0",
+    "sphinx-rtd-theme>=1.0",
+]
 
 [project.urls]
 "Source" = "https://github.com/omidNomiri/Neural_Observatory"
+"Bug Tracker" = "https://github.com/omidNomiri/Neural_Observatory/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*", "examples*", "docs*"]
