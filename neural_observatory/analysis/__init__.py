@@ -10,6 +10,7 @@ from .gradient_health import GradientHealthAnalyzer
 from .activation_statistics import ActivationStatisticsAnalyzer
 from .anomaly_detection import AnomalyDetectionAnalyzer
 from .parameter_health import ParameterHealthAnalyzer
+from .embedding_drift import EmbeddingDriftAnalyzer
 
 __all__ = [
     "BaseAnalyzer",
@@ -21,4 +22,5 @@ __all__ = [
     "ActivationStatisticsAnalyzer",
     "AnomalyDetectionAnalyzer",
     "ParameterHealthAnalyzer",
+    "EmbeddingDriftAnalyzer",
 ]

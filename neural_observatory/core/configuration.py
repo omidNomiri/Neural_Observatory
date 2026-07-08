@@ -103,6 +103,15 @@ class ObservatoryConfig:
     spike_std_multiplier: float = 5.0
 
     # ------------------------------------------------------------------
+    # Drift detection
+    # ------------------------------------------------------------------
+    # Warn if the average cosine similarity of embeddings drops below this.
+    embedding_drift_warning: float = 0.7
+    
+    # Critical alert threshold for embedding drift.
+    embedding_drift_critical: float = 0.4
+
+    # ------------------------------------------------------------------
     # Parameter health
     # ------------------------------------------------------------------
     # Large changes usually indicate unstable optimization.
@@ -169,7 +178,13 @@ class ObservatoryConfig:
         _validate_non_negative("update_to_param_ratio_warning", self.update_to_param_ratio_warning)
         _validate_range("report_min_severity", self.report_min_severity, 0.0, 1.0)
         _validate_positive("report_max_layers", self.report_max_layers)
-        
+        _validate_range("embedding_drift_warning", self.embedding_drift_warning, -1.0, 1.0)
+        _validate_range("embedding_drift_critical", self.embedding_drift_critical, -1.0, 1.0)
+        if self.embedding_drift_critical >= self.embedding_drift_warning:
+            raise ValueError(
+                f"embedding_drift_critical ({self.embedding_drift_critical}) "
+                f"must be less than embedding_drift_warning ({self.embedding_drift_warning})")
+
         if self.storage_backend not in ("memory", "sqlite"):
             raise ValueError(
                 f"storage_backend must be 'memory' or 'sqlite', got '{self.storage_backend}'"

@@ -196,9 +196,9 @@ pytest --cov=neural_observatory tests/
 - [x] Inplace operation compatibility (`inplace=True`)
 - [x] Memory-safe tensor copying (prevent silent data corruption)
 - [x] SQLite and In-Memory storage backends
+- [x] Add embedding drift detection over training epochs
 - [ ] Add support for Distributed Data Parallel (DDP) and FSDP
 - [ ] Deep compatibility testing with `torch.compile`
-- [ ] Add embedding drift detection over training epochs
 - [ ] Implement attention weight visualization tools
 - [ ] Add Neural Collapse detection metrics
 - [ ] Write integration tests for Vision Transformers (ViT) and LLMs

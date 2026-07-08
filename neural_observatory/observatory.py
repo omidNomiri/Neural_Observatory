@@ -30,6 +30,7 @@ from .analysis import (
     AnomalyDetectionAnalyzer,
     BaseAnalyzer,
     DeadNeuronAnalyzer,
+    EmbeddingDriftAnalyzer,
     GradientHealthAnalyzer,
     ParameterHealthAnalyzer,
 )
@@ -363,6 +364,7 @@ class Observatory:
             ActivationStatisticsAnalyzer(config=self._config),
             AnomalyDetectionAnalyzer(config=self._config),
             ParameterHealthAnalyzer(config=self._config),
+            EmbeddingDriftAnalyzer(config=self._config),
         ]
         for analyzer in analyzers:
             self._registry.register_analyzer(analyzer)
