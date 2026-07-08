@@ -9,6 +9,9 @@ description = "Neural network observability toolkit for PyTorch"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
+authors = [
+    {name = "Omid Nomiri", email = "omidnomiri@gmail.com"}
+]
 
 dependencies = [
     "torch>=1.9.0",
