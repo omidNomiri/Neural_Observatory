@@ -120,21 +120,17 @@ class Observatory:
 
         try:
             self._metadata_collector.collect_model_metadata(self._model)
-        except Exception as e:
-            logger.error("Metadata collection failed: %s", e, exc_info=True)
-            self._lifecycle.stop()
-            raise RuntimeError(
-                f"Metadata collection failed: {e}"
-            ) from e
-
-        try:
             self._hook_manager.attach()
+            
+            # IMPORTANT: Capture initial parameter baseline right after watch()
+            # so drift_from_init compares against step 0, not the final step.
+            self._parameter_collector.collect_model_parameters(
+                self._model, step=0, epoch=0
+            )
         except Exception as e:
-            logger.error("Hook attachment failed: %s", e, exc_info=True)
+            logger.error("Initialization failed during watch(): %s", e, exc_info=True)
             self._lifecycle.stop()
-            raise RuntimeError(
-                f"Hook attachment failed: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to start monitoring: {e}") from e
 
         logger.info("Observatory watching model — %d layers instrumented", len(
             self._hook_manager.hook_handles))
