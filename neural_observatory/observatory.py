@@ -58,7 +58,18 @@ class Observatory:
         model: nn.Module,
         config: Optional[ObservatoryConfig] = None,
     ) -> None:
-        self._model = model
+        # Handle torch.compile() models.
+        # Compiled models wrap the original nn.Module in an OptimizedModule.
+        # We must hook the original module to avoid graph breaks and missed data.
+        if hasattr(model, "_orig_mod"):
+            logger.info(
+                "torch.compile detected: Observatory will monitor the underlying original module. "
+                "Note: Forward hooks may cause graph breaks in compiled models."
+            )
+            self._model = model._orig_mod
+        else:
+            self._model = model
+
         self._config = config or ObservatoryConfig()
         self._lifecycle = LifecycleManager()
         self._registry = Registry()
