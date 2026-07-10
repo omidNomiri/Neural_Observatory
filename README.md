@@ -12,6 +12,7 @@ A scientific instrumentation framework that allows researchers and engineers to 
 - **Gradient Health Monitoring** — Detect vanishing and exploding gradients
 - **Activation Analysis** — Statistical summaries and anomaly detection
 - **Parameter Health Tracking** — Monitor weight drift and update magnitudes
+- **Embedding Drift Detection** — Track semantic shifts in NLP models using cosine similarity
 - **Numerical Anomaly Detection** — Flag NaN/Inf and activation spikes
 
 ### Design Philosophy
@@ -59,7 +60,6 @@ To ensure stability, please be aware of the following current limitations:
 - No DDP (Distributed Data Parallel) support yet
 - No FSDP support
 - TorchScript not tested
-- `torch.compile` compatibility is experimental
 - Quantized models are only partially supported
 
 ---
@@ -82,6 +82,9 @@ obs = Observatory(model)
 obs.watch()
 
 # Training loop
+num_epochs = 5
+global_step = 0
+
 for epoch in range(num_epochs):
     for X, y in train_loader:
         # IMPORTANT: Call step() *before* the forward pass
@@ -91,6 +94,8 @@ for epoch in range(num_epochs):
         loss = criterion(output, y)
         loss.backward()
         optimizer.step()
+        
+        global_step += 1
 
 # Generate diagnostics
 obs.stop()
@@ -106,24 +111,6 @@ pip install neural-observatory
 
 ## Documentation
 
-### Architecture
-
-Neural Observatory is built in modular layers:
-
-```text
-Model Execution
-     ↓
-Hooks (observation points)
-     ↓
-Collectors (raw data capture)
-     ↓
-Storage (in-memory/disk)
-     ↓
-Analysis Engine (compute diagnostics)
-     ↓
-Reporting (human/machine output)
-```
-
 ### Configuration
 
 ```python
@@ -134,7 +121,7 @@ config = ObservatoryConfig(
     gradient_sample_rate=1,    # Collect every backward pass
     parameter_sample_rate=10,  # Snapshot parameters every N steps
     max_observations=1000,     # Circular buffer size per layer
-    stats_only_mode=False,     # Keep raw tensors
+    stats_only_mode=False,     # Keep raw tensors (needed for Embedding Drift)
     store_on_cpu=True,         # Move tensors off GPU
 )
 
@@ -197,8 +184,8 @@ pytest --cov=neural_observatory tests/
 - [x] Memory-safe tensor copying (prevent silent data corruption)
 - [x] SQLite and In-Memory storage backends
 - [x] Add embedding drift detection over training epochs
+- [x] Deep compatibility testing with `torch.compile`
 - [ ] Add support for Distributed Data Parallel (DDP) and FSDP
-- [ ] Deep compatibility testing with `torch.compile`
 - [ ] Implement attention weight visualization tools
 - [ ] Add Neural Collapse detection metrics
 - [ ] Write integration tests for Vision Transformers (ViT) and LLMs
