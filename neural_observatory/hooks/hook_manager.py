@@ -113,13 +113,20 @@ class HookManager:
             epoch = self._epoch
 
             tensor = output
+            attn_weights = None
+            
             if isinstance(output, (tuple, list)):
-                for item in output:
-                    if isinstance(item, torch.Tensor):
-                        tensor = item
-                        break
+                # Special handling for nn.MultiheadAttention which returns (output, weights)
+                if len(output) == 2 and isinstance(output[1], torch.Tensor):
+                    tensor = output[0]
+                    attn_weights = output[1]
                 else:
-                    return
+                    for item in output:
+                        if isinstance(item, torch.Tensor):
+                            tensor = item
+                            break
+                    else:
+                        return
 
             if not isinstance(tensor, torch.Tensor):
                 return
@@ -131,9 +138,18 @@ class HookManager:
                     step=step,
                     epoch=epoch,
                 )
+                # If we captured attention weights, store them under a special collection name
+                if attn_weights is not None:
+                    act_col.collect(
+                        layer_name=f"{layer_name}_attn_weights",
+                        data=attn_weights,
+                        step=step,
+                        epoch=epoch,
+                    )
             except Exception as exc:
                 logger.debug("Forward hook error on %s: %s", layer_name, exc)
 
+            # THIS WAS MISSING! We need to re-attach the gradient hook.
             if tensor.requires_grad:
                 tensor.register_hook(
                     self._make_grad_hook(layer_name, step, epoch)

@@ -103,6 +103,15 @@ class ObservatoryConfig:
     spike_std_multiplier: float = 5.0
 
     # ------------------------------------------------------------------
+    # Attention Analysis
+    # ------------------------------------------------------------------
+    # Warn if attention entropy drops below this (model is collapsing to one token).
+    attention_low_entropy_warning: float = 0.5
+    
+    # Warn if attention entropy is too high (model is unfocused/uniform).
+    attention_high_entropy_warning: float = 3.0
+
+    # ------------------------------------------------------------------
     # Drift detection
     # ------------------------------------------------------------------
     # Warn if the average cosine similarity of embeddings drops below this.

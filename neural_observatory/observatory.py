@@ -28,6 +28,7 @@ from .collectors import (
 from .analysis import (
     ActivationStatisticsAnalyzer,
     AnomalyDetectionAnalyzer,
+    AttentionHealthAnalyzer,
     BaseAnalyzer,
     DeadNeuronAnalyzer,
     EmbeddingDriftAnalyzer,
@@ -372,6 +373,7 @@ class Observatory:
             AnomalyDetectionAnalyzer(config=self._config),
             ParameterHealthAnalyzer(config=self._config),
             EmbeddingDriftAnalyzer(config=self._config),
+            AttentionHealthAnalyzer(config=self._config),
         ]
         for analyzer in analyzers:
             self._registry.register_analyzer(analyzer)
