@@ -1,5 +1,6 @@
 """Regression tests for Observatory.step() propagation to HookManager."""
 import torch
+import numpy as np
 
 from neural_observatory import Observatory, ObservatoryConfig
 from conftest import run_training_steps
@@ -66,3 +67,27 @@ def test_anomaly_warning_reports_correct_step(tiny_model):
     assert any("steps [3]" in w or "step 3" in w or "[3]" in w for w in nan_result.warnings), (
         f"Expected warning to reference step 3, got: {nan_result.warnings}"
     )
+
+def test_targets_are_attached_to_correct_layer(tiny_model):
+    """Ensure targets passed to step() are saved in the metadata of the configured NC layer."""
+    # Configure the penultimate layer (layer "0" in this tiny model) for Neural Collapse
+    cfg = ObservatoryConfig(neural_collapse_layer="0", max_observations=10)
+    obs = Observatory(tiny_model, config=cfg)
+    obs.watch()
+
+    x = torch.randn(4, 8)
+    y = torch.randint(0, 4, (4,))
+
+    # Pass targets to step()
+    obs.step(step=0, epoch=0, targets=y)
+    _ = tiny_model(x)
+
+    # Check if the targets arrived in the metadata
+    layer = obs.activation_collector.layer_names[0]
+    collected_obs = obs.activation_collector.get(layer)
+    
+    assert len(collected_obs) > 0
+    assert "targets" in collected_obs[0].metadata, "Targets were not attached to the layer metadata."
+    
+    # Verify the tensor values match
+    np.testing.assert_array_equal(collected_obs[0].metadata["targets"], y.numpy())
