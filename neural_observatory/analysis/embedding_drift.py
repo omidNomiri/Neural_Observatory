@@ -26,9 +26,13 @@ class EmbeddingDriftAnalyzer(BaseAnalyzer):
         for param_name, obs_list in parameters.items():
             if not obs_list:
                 continue
-
+            
             # Heuristic: Embedding weights are 2D matrices where dim 0 (vocab) > dim 1 (embed_dim)
+            # Fallback to values.shape if metadata is missing
             shape = obs_list[0].metadata.get("shape", [])
+            if not shape and obs_list[0].values is not None:
+                shape = list(obs_list[0].values.shape)
+                
             if len(shape) != 2 or shape[0] <= shape[1]:
                 continue
                 

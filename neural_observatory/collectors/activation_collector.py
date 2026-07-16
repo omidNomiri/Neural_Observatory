@@ -3,14 +3,13 @@ Neural Observatory — Activation Collector
 """
 from __future__ import annotations
 
-from importlib import metadata
 import logging
 import time
 from typing import Any, Optional
 
 import numpy as np
 
-from .base import BaseCollector, Observation
+from .base import BaseCollector, Dict, Observation
 from ..core.configuration import ObservatoryConfig
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,14 @@ class ActivationCollector(BaseCollector):
         self._config = cfg
         self._storage = storage
 
-    def collect(self, layer_name: str, data: Any, step: int, epoch: int = 0, metadata: Optional[Dict[str, Any]] = None,) -> None:
+    def collect(
+        self,
+        layer_name: str,
+        data: Any,
+        step: int,
+        epoch: int = 0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if not self._config.should_collect_activation(step):
             return
 
@@ -41,10 +47,11 @@ class ActivationCollector(BaseCollector):
 
         stats = self._compute_basic_stats(arr)
         stats["sparsity"] = self._compute_sparsity(arr)
-        
-        # Needed by AnomalyDetectionAnalyzer
         stats["has_nan"] = int(np.any(np.isnan(arr)))
         stats["has_inf"] = int(np.any(np.isinf(arr)))
+
+        if metadata is None:
+            metadata = {"shape": list(arr.shape), "dtype": str(arr.dtype)}
 
         obs = Observation(
             layer_name=layer_name,
@@ -53,7 +60,7 @@ class ActivationCollector(BaseCollector):
             timestamp=time.time(),
             values=None if self._config.stats_only_mode else arr,
             stats=stats,
-            metadata=metadata if metadata is not None else {"shape": list(arr.shape), "dtype": str(arr.dtype)},
+            metadata=metadata,
         )
 
         buf = self._get_or_create_buffer(layer_name)

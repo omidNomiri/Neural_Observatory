@@ -111,7 +111,7 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
         info = []
 
         if nc_ratio < cfg.neural_collapse_variance_threshold:
-            severity = 0.4
+            severity = 0.3
             info.append(
                 f"Neural Collapse detected (Variance Ratio: {nc_ratio:.3f}). "
                 "Features are aligning to class means."

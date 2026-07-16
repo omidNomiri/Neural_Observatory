@@ -136,11 +136,20 @@ class HookManager:
                 return
 
             try:
+                metadata = {"shape": list(tensor.shape), "dtype": str(tensor.dtype)}
+                
+                # Attach targets if this is the configured Neural Collapse layer
+                if self._config.neural_collapse_layer == layer_name and self._targets is not None:
+                    # Convert targets tensor to numpy safely
+                    targets_np = self._targets.detach().cpu().numpy()
+                    metadata["targets"] = targets_np
+                
                 act_col.collect(
                     layer_name=layer_name,
                     data=tensor,
                     step=step,
                     epoch=epoch,
+                    metadata=metadata,
                 )
                 # If we captured attention weights, store them under a special collection name
                 if attn_weights is not None:
@@ -149,7 +158,6 @@ class HookManager:
                         data=attn_weights,
                         step=step,
                         epoch=epoch,
-                        metadata=metadata,
                     )
             except Exception as exc:
                 logger.debug("Forward hook error on %s: %s", layer_name, exc)
