@@ -8,6 +8,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
+import torch
 import torch.nn as nn
 
 from .core import (
@@ -34,6 +35,7 @@ from .analysis import (
     EmbeddingDriftAnalyzer,
     GradientHealthAnalyzer,
     ParameterHealthAnalyzer,
+    NeuralCollapseAnalyzer,
 )
 from .hooks import HookManager
 from .reporting import (
@@ -168,7 +170,7 @@ class Observatory:
     # Public API: Training loop integration
     # ==================================================================
 
-    def step(self, step: int = 1, epoch: int = 0) -> None:
+    def step(self, step: int = 1, epoch: int = 0, targets: Optional[torch.Tensor] = None) -> None:
         """
         Update the internal step and epoch counters.
 
@@ -191,6 +193,8 @@ class Observatory:
         self._epoch = epoch
         self._hook_manager.set_step(step)
         self._hook_manager.set_epoch(epoch)
+        if targets is not None:
+            self._hook_manager.set_targets(targets)
 
     # ==================================================================
     # Public API: Analysis and Reporting
@@ -374,6 +378,7 @@ class Observatory:
             ParameterHealthAnalyzer(config=self._config),
             EmbeddingDriftAnalyzer(config=self._config),
             AttentionHealthAnalyzer(config=self._config),
+            NeuralCollapseAnalyzer(config=self._config),
         ]
         for analyzer in analyzers:
             self._registry.register_analyzer(analyzer)

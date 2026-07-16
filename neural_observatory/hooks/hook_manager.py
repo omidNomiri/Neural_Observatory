@@ -31,6 +31,7 @@ class HookManager:
         self._step: int = 0
         self._epoch: int = 0
         self._active: bool = False
+        self._targets: Optional[torch.Tensor] = None
         self.hook_handles: Dict[str, List[Any]] = {}
 
     def attach(self, layer_filter: Optional[List[str]] = None) -> None:
@@ -103,6 +104,9 @@ class HookManager:
     def set_epoch(self, epoch: int) -> None:
         self._epoch = epoch
 
+    def set_targets(self, targets: torch.Tensor) -> None:
+        self._targets = targets
+
     def _make_forward_hook(self, layer_name: str) -> Callable:
         act_col = self._act_col
         grad_col = self._grad_col
@@ -145,6 +149,7 @@ class HookManager:
                         data=attn_weights,
                         step=step,
                         epoch=epoch,
+                        metadata=metadata,
                     )
             except Exception as exc:
                 logger.debug("Forward hook error on %s: %s", layer_name, exc)

@@ -186,7 +186,7 @@ pytest --cov=neural_observatory tests/
 - [x] Add embedding drift detection over training epochs
 - [x] Deep compatibility testing with `torch.compile`
 - [x] Write integration tests for Vision Transformers (ViT) and LLMs
+- [x] Add Neural Collapse detection metrics
 - [ ] Add support for Distributed Data Parallel (DDP) and FSDP
 - [ ] Implement attention weight visualization tools
-- [ ] Add Neural Collapse detection metrics
 - [ ] Set up automated Sphinx documentation hosting

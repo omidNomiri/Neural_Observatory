@@ -3,6 +3,7 @@ Neural Observatory — Activation Collector
 """
 from __future__ import annotations
 
+from importlib import metadata
 import logging
 import time
 from typing import Any, Optional
@@ -29,7 +30,7 @@ class ActivationCollector(BaseCollector):
         self._config = cfg
         self._storage = storage
 
-    def collect(self, layer_name: str, data: Any, step: int, epoch: int = 0) -> None:
+    def collect(self, layer_name: str, data: Any, step: int, epoch: int = 0, metadata: Optional[Dict[str, Any]] = None,) -> None:
         if not self._config.should_collect_activation(step):
             return
 
@@ -52,7 +53,7 @@ class ActivationCollector(BaseCollector):
             timestamp=time.time(),
             values=None if self._config.stats_only_mode else arr,
             stats=stats,
-            metadata={"shape": list(arr.shape), "dtype": str(arr.dtype)},
+            metadata=metadata if metadata is not None else {"shape": list(arr.shape), "dtype": str(arr.dtype)},
         )
 
         buf = self._get_or_create_buffer(layer_name)

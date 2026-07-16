@@ -12,6 +12,7 @@ from .anomaly_detection import AnomalyDetectionAnalyzer
 from .parameter_health import ParameterHealthAnalyzer
 from .embedding_drift import EmbeddingDriftAnalyzer
 from .attention_health import AttentionHealthAnalyzer
+from .neural_collapse import NeuralCollapseAnalyzer
 
 __all__ = [
     "BaseAnalyzer",
@@ -24,5 +25,6 @@ __all__ = [
     "AnomalyDetectionAnalyzer",
     "ParameterHealthAnalyzer",
     "EmbeddingDriftAnalyzer",
-    "AttentionHealthAnalyzer"
+    "AttentionHealthAnalyzer",
+    "NeuralCollapseAnalyzer",
 ]

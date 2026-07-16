@@ -112,6 +112,16 @@ class ObservatoryConfig:
     attention_high_entropy_warning: float = 3.0
 
     # ------------------------------------------------------------------
+    # Neural Collapse
+    # ------------------------------------------------------------------
+    # Name of the penultimate layer to monitor for Neural Collapse.
+    # If None, this analyzer is disabled.
+    neural_collapse_layer: Optional[str] = None
+    
+    # Warn when within-class variance drops below this ratio (collapse is happening).
+    neural_collapse_variance_threshold: float = 0.1
+
+    # ------------------------------------------------------------------
     # Drift detection
     # ------------------------------------------------------------------
     # Warn if the average cosine similarity of embeddings drops below this.
