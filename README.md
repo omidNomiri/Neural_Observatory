@@ -187,6 +187,6 @@ pytest --cov=neural_observatory tests/
 - [x] Deep compatibility testing with `torch.compile`
 - [x] Add Neural Collapse detection metrics
 - [x] Implement attention weight visualization tools
-- [ ] Add support for Distributed Data Parallel (DDP) and FSDP
-- [ ] Write integration tests for Vision Transformers (ViT) and LLMs
+- [x] Write integration tests for Vision Transformers (ViT) and LLMs
 - [ ] Set up automated Sphinx documentation hosting
+- [ ] Add support for Distributed Data Parallel (DDP) and FSDP
