@@ -32,3 +32,10 @@ All notable changes to this project will be documented in this file.
 - New NeuralCollapseAnalyzer to monitor within-class variance in penultimate layers.
 - Deep compatibility testing with torch.compile.
 - Ability to pass targets to Observatory.step() for advanced analysis.
+
+## [0.3.0] - 2026-07-31
+
+### Added
+
+- Automated Sphinx documentation hosted on GitHub Pages.
+- Add Vit test.

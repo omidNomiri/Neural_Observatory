@@ -188,5 +188,4 @@ pytest --cov=neural_observatory tests/
 - [x] Add Neural Collapse detection metrics
 - [x] Implement attention weight visualization tools
 - [x] Write integration tests for Vision Transformers (ViT) and LLMs
-- [ ] Set up automated Sphinx documentation hosting
-- [ ] Add support for Distributed Data Parallel (DDP) and FSDP
+- [x] Set up automated Sphinx documentation hosting
