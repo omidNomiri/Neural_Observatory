@@ -118,9 +118,31 @@ class HookManager:
 
             tensor = output
             attn_weights = None
-            
-            if isinstance(output, (tuple, list)):
-                # Special handling for nn.MultiheadAttention which returns (output, weights)
+
+            # Special handling for nn.MultiheadAttention
+            if isinstance(module, nn.MultiheadAttention):
+                if isinstance(output, tuple) and len(output) == 2 and output[1] is not None:
+                    tensor = output[0]
+                    attn_weights = output[1]
+                else:
+                    # The user set need_weights=False, so weights are missing!
+                    if not getattr(module, "_obs_warned_attn", False):
+                        logger.warning(
+                            "Layer '%s' is an nn.MultiheadAttention but did not return attention weights. "
+                            "Please set `need_weights=True` in your forward pass to allow AttentionHealthAnalyzer to work.",
+                            layer_name
+                        )
+                        # Set a flag on the module so we don't spam the logs every step
+                        module._obs_warned_attn = True
+
+                    # Fallback to using the output tensor directly
+                    if isinstance(output, tuple) and len(output) > 0:
+                        tensor = output[0]
+                    else:
+                        tensor = output
+
+            elif isinstance(output, (tuple, list)):
+                # Generic tuple/list handling for other layers
                 if len(output) == 2 and isinstance(output[1], torch.Tensor):
                     tensor = output[0]
                     attn_weights = output[1]
@@ -137,13 +159,12 @@ class HookManager:
 
             try:
                 metadata = {"shape": list(tensor.shape), "dtype": str(tensor.dtype)}
-                
+
                 # Attach targets if this is the configured Neural Collapse layer
                 if self._config.neural_collapse_layer == layer_name and self._targets is not None:
-                    # Convert targets tensor to numpy safely
                     targets_np = self._targets.detach().cpu().numpy()
                     metadata["targets"] = targets_np
-                
+
                 act_col.collect(
                     layer_name=layer_name,
                     data=tensor,
@@ -151,6 +172,7 @@ class HookManager:
                     epoch=epoch,
                     metadata=metadata,
                 )
+
                 # If we captured attention weights, store them under a special collection name
                 if attn_weights is not None:
                     act_col.collect(
@@ -169,7 +191,6 @@ class HookManager:
                 )
 
         return _forward_hook
-
     def _make_grad_hook(self, layer_name: str, step: int, epoch: int) -> Callable:
         grad_col = self._grad_col
 
