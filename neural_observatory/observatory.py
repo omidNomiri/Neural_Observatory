@@ -170,7 +170,7 @@ class Observatory:
     # Public API: Training loop integration
     # ==================================================================
 
-    def step(self, step: int = 1, epoch: int = 0, targets: Optional[torch.Tensor] = None) -> None:
+    def step(self, step: Optional[int] = None, epoch: Optional[int] = None, targets: Optional[torch.Tensor] = None) -> None:
         """
         Update the internal step and epoch counters.
 
@@ -185,14 +185,18 @@ class Observatory:
             forward/backward hook closures read these values to stamp
             each Observation and to evaluate the configured sample rate
             (``should_collect_activation``/``should_collect_gradient``).
-            Without this forwarding, hooks would always see step=0, which
-            silently disables sample-rate-based skipping (0 % N == 0 is
-            always true) and mislabels every stored observation's step.
         """
-        self._step = step
-        self._epoch = epoch
-        self._hook_manager.set_step(step)
-        self._hook_manager.set_epoch(epoch)
+
+        if step is not None:
+            self._step = step
+        else:
+            self._step += 1
+            
+        if epoch is not None:
+            self._epoch = epoch
+            
+        self._hook_manager.set_step(self._step)
+        self._hook_manager.set_epoch(self._epoch)
         if targets is not None:
             self._hook_manager.set_targets(targets)
 
@@ -210,7 +214,15 @@ class Observatory:
         Raises:
             LifecycleError: if called before watch().
         """
+
         self._lifecycle.require_reportable("report")
+
+        # UX Guard: Warn if step was never updated
+        if self._step == 0 and (self._config.activation_sample_rate > 1 or self._config.gradient_sample_rate > 1):
+            logger.warning(
+                "Observatory.step() was never called (step=0). "
+                "Sampling rates will not work properly. Please call obs.step() in your training loop."
+            )
 
         if not self._has_data():
             raise LifecycleError("No data to report")
