@@ -74,7 +74,15 @@ class SQLiteStore:
                 values_blob,
             ),
         )
+
+    def commit(self) -> None:
+        """Commit all pending transactions to disk."""
         self._conn.commit()
+
+    def close(self) -> None:
+        # Ensure any uncommitted data is written before closing
+        self._conn.commit()
+        self._conn.close()
 
     def get(
         self,

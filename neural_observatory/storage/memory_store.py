@@ -28,6 +28,10 @@ class MemoryStore:
             col[layer_name] = deque(maxlen=self._max)
         col[layer_name].append(observation)
 
+    def commit(self) -> None:
+        """Memory store doesn't need to commit to disk, but provided for interface consistency."""
+        pass
+
     def get(
         self,
         collection: str,

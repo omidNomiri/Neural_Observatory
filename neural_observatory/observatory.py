@@ -441,6 +441,10 @@ class Observatory:
                 for obs in obs_list:
                     self._store.put(collection, layer_name, obs)
 
+        # Batch commit all observations to disk at once (Huge performance boost!)
+        if hasattr(self._store, 'commit'):
+            self._store.commit()
+
     # ==================================================================
     # Internal: Utilities
     # ==================================================================
