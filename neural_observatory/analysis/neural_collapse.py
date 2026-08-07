@@ -50,10 +50,12 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
         features = obs.values
         targets = obs.metadata["targets"]
 
-        # Handle batching: features might be (batch, feature_dim) or (batch, seq, dim)
-        # We flatten if it's 3D for simplicity in this analysis
+        # Handle Transformer/NLP outputs (batch, seq, dim)
+        # In Transformers, token 0 is the [CLS] token representing the whole sample.
+        # We MUST use the CLS token, not mean(axis=1), because averaging destroys 
+        # the within-class variance we are trying to measure.
         if features.ndim == 3:
-            features = features.mean(axis=1)  # Global average pooling over sequence
+            features = features[:, 0, :]  # Extract [CLS] token
         
         if features.ndim != 2 or targets.ndim != 1:
             return None
@@ -111,7 +113,7 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
         info = []
 
         if nc_ratio < cfg.neural_collapse_variance_threshold:
-            severity = 0.3
+            severity = 0.3  # Kept at 0.3 to map to INFO status
             info.append(
                 f"Neural Collapse detected (Variance Ratio: {nc_ratio:.3f}). "
                 "Features are aligning to class means."
