@@ -39,3 +39,18 @@ All notable changes to this project will be documented in this file.
 
 - Automated Sphinx documentation hosted on GitHub Pages.
 - Add Vit test.
+
+## [0.4.0] - 2026-08-7
+
+## Fixed
+
+- AttentionHealthAnalyzer: Warns users if nn.MultiheadAttention is called with need_weights=False.
+- NeuralCollapseAnalyzer: Correctly extracts the [CLS] token (index 0) for 3D NLP features instead of averaging.
+
+## Added
+
+- Observatory.step(): Auto-increments the step counter if no argument is provided. Warns if sampling rates are bypassed.
+
+## Performance
+
+- SQLiteStore: Implemented batch commits during report generation to drastically reduce disk I/O bottleneck.
