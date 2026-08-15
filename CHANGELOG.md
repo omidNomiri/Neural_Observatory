@@ -54,3 +54,15 @@ All notable changes to this project will be documented in this file.
 ## Performance
 
 - SQLiteStore: Implemented batch commits during report generation to drastically reduce disk I/O bottleneck.
+
+## [0.4.1] - 2026-08-15
+
+## Fixed
+
+- Critical: HookManager now correctly attaches hooks to the underlying original module (_orig_mod) when using torch.compile, preventing silent monitoring failures.
+- Critical: Fixed duplicate close() method in SQLiteStore that could cause uncommitted data loss.
+Observatory.step() now safely guards against being called before watch() or after stop().
+
+## Changed
+
+- Introduced BaseStore ABC to standardize the storage backend interface. MemoryStore and SQLiteStore now inherit from it, replacing fragile hasattr checks.
