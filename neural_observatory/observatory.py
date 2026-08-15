@@ -45,8 +45,10 @@ from .reporting import (
     Report,
     BaseReporter,
 )
+
 from .storage import MemoryStore
 from .storage.sqlite_store import SQLiteStore
+from .storage.base import BaseStore
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,7 @@ class Observatory:
 
         # Hooks
         self._hook_manager = HookManager(
-            model=model,
+            model=self._model,
             activation_collector=self._activation_collector,
             gradient_collector=self._gradient_collector,
             config=self._config,
@@ -185,7 +187,12 @@ class Observatory:
             forward/backward hook closures read these values to stamp
             each Observation and to evaluate the configured sample rate
             (``should_collect_activation``/``should_collect_gradient``).
+            If `step` is not provided, it auto-increments the internal counter.
         """
+
+        if not self._lifecycle.is_active:
+            logger.warning("Observatory.step() called while not active. Call obs.watch() first.")
+            return
 
         if step is not None:
             self._step = step
@@ -374,7 +381,7 @@ class Observatory:
         )
 
     @staticmethod
-    def _create_store(config: ObservatoryConfig):
+    def _create_store(config: ObservatoryConfig) -> BaseStore:
         """Instantiate the storage backend the config actually asks for."""
         if config.storage_backend == "sqlite":
             return SQLiteStore(db_path=config.storage_path)
@@ -440,6 +447,8 @@ class Observatory:
             for layer_name, obs_list in by_layer.items():
                 for obs in obs_list:
                     self._store.put(collection, layer_name, obs)
+
+        self._store.commit()
 
         # Batch commit all observations to disk at once (Huge performance boost!)
         if hasattr(self._store, 'commit'):

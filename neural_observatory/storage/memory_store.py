@@ -7,12 +7,13 @@ import logging
 from collections import deque
 from typing import Any, Dict, List, Optional
 
+from .base import BaseStore
 from ..collectors.base import Observation
 
 logger = logging.getLogger(__name__)
 
 
-class MemoryStore:
+class MemoryStore(BaseStore):
     def __init__(self, max_observations: int = 1000) -> None:
         self._max = max_observations
         self._data: Dict[str, Dict[str, deque]] = {}

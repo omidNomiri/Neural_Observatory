@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from .base import BaseStore
 from ..collectors.base import Observation
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
 """
 
 
-class SQLiteStore:
+class SQLiteStore(BaseStore):
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
             # mktemp is deprecated and insecure, using NamedTemporaryFile instead
@@ -80,7 +81,7 @@ class SQLiteStore:
         self._conn.commit()
 
     def close(self) -> None:
-        # Ensure any uncommitted data is written before closing
+        # Ensure data is written before closing
         self._conn.commit()
         self._conn.close()
 
