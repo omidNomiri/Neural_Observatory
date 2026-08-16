@@ -50,18 +50,17 @@ def test_attention_health_analyzer_detects_collapse():
     analyzer = AttentionHealthAnalyzer(config=cfg)
 
     # Shape: (batch=2, heads=1, seq=4, seq=4)
-    # Collapsed: every token attends ONLY to token 0
     collapsed_weights = np.zeros((2, 1, 4, 4), dtype=np.float32)
-    collapsed_weights[:, :, :, 0] = 1.0  # One-hot distribution
+    collapsed_weights[:, :, :, 0] = 1.0
 
     observations = {
         "activations": {
-            "attn_attn_weights": [_obs(0, values=collapsed_weights)]
+            "attn": [_obs(0, values=collapsed_weights, metadata={"is_attention_weights": True})]
         }
     }
     results = analyzer.analyze(observations)
     assert len(results) == 1
-    assert results[0].metrics["mean_entropy"] == 0.0  # Perfectly predictable = 0 entropy
+    assert results[0].metrics["mean_entropy"] == 0.0
     assert results[0].status.value == "warning"
 
 
@@ -70,18 +69,15 @@ def test_attention_health_analyzer_detects_uniform():
     cfg = ObservatoryConfig(attention_low_entropy_warning=0.5, attention_high_entropy_warning=1.0)
     analyzer = AttentionHealthAnalyzer(config=cfg)
 
-    # Shape: (batch=2, heads=1, seq=4, seq=4)
-    # Uniform: every token attends equally to all tokens (prob = 0.25)
     uniform_weights = np.ones((2, 1, 4, 4), dtype=np.float32) * 0.25
 
     observations = {
         "activations": {
-            "attn_attn_weights": [_obs(0, values=uniform_weights)]
+            "attn": [_obs(0, values=uniform_weights, metadata={"is_attention_weights": True})]
         }
     }
     results = analyzer.analyze(observations)
     assert len(results) == 1
-    # Entropy of uniform distribution over 4 items is ln(4) ~ 1.386
     assert results[0].metrics["mean_entropy"] > 1.0
     assert results[0].status.value == "warning"
 

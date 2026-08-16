@@ -173,14 +173,16 @@ class HookManager:
                     metadata=metadata,
                 )
 
-                # If we captured attention weights, store them under a special collection name
+                # If we captured attention weights, store them with a metadata flag
                 if attn_weights is not None:
                     act_col.collect(
-                        layer_name=f"{layer_name}_attn_weights",
+                        layer_name=layer_name,  
                         data=attn_weights,
                         step=step,
                         epoch=epoch,
+                        metadata={"is_attention_weights": True},
                     )
+
             except Exception as exc:
                 logger.debug("Forward hook error on %s: %s", layer_name, exc)
 

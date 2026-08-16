@@ -414,6 +414,13 @@ class Observatory:
             self._registry.register_reporter(reporter)
         logger.debug("Registered %d default reporters", len(reporters))
 
+    def __enter__(self) -> "Observatory":
+        self.watch()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()
+
     # ==================================================================
     # Internal: Data collection
     # ==================================================================

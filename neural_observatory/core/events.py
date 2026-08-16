@@ -4,6 +4,7 @@ Lets different parts of the framework talk to each other without hard dependenci
 """
 from __future__ import annotations
 
+import threading
 import logging
 import time
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ EventHandler = Callable[[Event], None]
 class EventBus:
     def __init__(self) -> None:
         self._subscribers: Dict[EventType, List[EventHandler]] = {}
+        self._lock = threading.RLock()
 
     def subscribe(self, event_type: EventType, handler: EventHandler) -> None:
         self._subscribers.setdefault(event_type, []).append(handler)
@@ -53,17 +55,16 @@ class EventBus:
             handlers.remove(handler)
 
     def publish(self, event: Event) -> None:
-        for handler in self._subscribers.get(event.event_type, []):
+        with self._lock:
+            handlers = list(self._subscribers.get(event.event_type, []))
+
+        for handler in handlers:
             try:
                 handler(event)
             except Exception as exc:
-                # Don't let one bad handler crash the whole pipeline
                 logger.error(
                     "EventBus handler %s raised %s: %s",
-                    handler,
-                    type(exc).__name__,
-                    exc,
-                    exc_info=True
+                    handler, type(exc).__name__, exc, exc_info=True
                 )
 
     def clear(self) -> None:

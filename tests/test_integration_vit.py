@@ -75,7 +75,10 @@ def test_vit_attention_and_embedding_monitoring():
     report = obs.report()
 
     # 1. Verify Attention weights were captured
-    assert "attention_attn_weights" in obs.activation_collector.layer_names, \
+    # Since we changed the architecture to use metadata flags instead of name suffixes
+    attn_layer_obs = obs.activation_collector.get("attention")
+    assert len(attn_layer_obs) > 0, "No observations for attention layer!"
+    assert any(o.metadata.get("is_attention_weights") for o in attn_layer_obs), \
         "MultiheadAttention weights were not captured by hooks!"
 
     # 2. Verify Embedding Drift analyzer ran on the patch embedding

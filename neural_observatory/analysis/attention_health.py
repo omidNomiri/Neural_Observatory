@@ -24,14 +24,17 @@ class AttentionHealthAnalyzer(BaseAnalyzer):
         activations: Dict[str, List[Observation]] = observations.get("activations", {})
         results: List[AnalysisResult] = []
 
-        # We only care about layers ending with our special suffix
         for layer_name, obs_list in activations.items():
-            if not layer_name.endswith("_attn_weights") or not obs_list:
+            if not obs_list:
                 continue
 
-            # Remove suffix for the final report so it looks clean
-            clean_name = layer_name.replace("_attn_weights", "")
-            result = self._analyze_layer(clean_name, obs_list)
+            # Filter to get ONLY the attention weights, ignoring the layer's output tensor
+            weight_obs = [o for o in obs_list if o.metadata.get("is_attention_weights")]
+
+            if not weight_obs:
+                continue
+
+            result = self._analyze_layer(layer_name, weight_obs)
             if result:
                 results.append(result)
 
