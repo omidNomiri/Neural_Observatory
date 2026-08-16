@@ -3,6 +3,7 @@ Neural Observatory — Base Collector
 """
 from __future__ import annotations
 
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
@@ -58,6 +59,7 @@ class BaseCollector(ABC):
         self._max_observations = max_observations
         self._store_on_cpu = store_on_cpu
         self._buffers: Dict[str, LayerBuffer] = {}
+        self._lock = threading.RLock()
         self._total = 0
 
     @abstractmethod
@@ -84,17 +86,19 @@ class BaseCollector(ABC):
         return self._total
 
     def clear(self) -> None:
-        for buf in self._buffers.values():
-            buf.clear()
-        self._total = 0
+        with self._lock:
+            for buf in self._buffers.values():
+                buf.clear()
+            self._total = 0
 
     def _get_or_create_buffer(self, layer_name: str) -> LayerBuffer:
-        if layer_name not in self._buffers:
-            self._buffers[layer_name] = LayerBuffer(
-                layer_name=layer_name,
-                capacity=self._max_observations,
-            )
-        return self._buffers[layer_name]
+        with self._lock:
+            if layer_name not in self._buffers:
+                self._buffers[layer_name] = LayerBuffer(
+                    layer_name=layer_name,
+                    capacity=self._max_observations,
+                )
+            return self._buffers[layer_name]
 
     @staticmethod
     def _safe_numpy(tensor: Any, *, move_to_cpu: bool = True) -> Optional[np.ndarray]:

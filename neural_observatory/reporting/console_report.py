@@ -138,7 +138,13 @@ class ConsoleReporter(BaseReporter):
 
         metric_str = self._format_key_metrics(r)
 
-        name_col = r.layer_name[:30].ljust(30)
+        raw_name = r.layer_name
+        if len(raw_name) > 30:
+            name_str = raw_name[:27] + "..."
+        else:
+            name_str = raw_name
+        name_col = name_str.ljust(30)
+
         metrics_col = metric_str[:20].ljust(20)
 
         line = f"  {name_col}  {metrics_col}  {icon} {status}"
