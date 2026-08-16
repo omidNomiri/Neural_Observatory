@@ -6,14 +6,14 @@ sys.path.insert(0, os.path.abspath('..'))
 
 project = 'Neural Observatory'
 author = 'Omid Nomiri'
-release = '0.4.1'
+release = '0.5.0'
 
 # -- General options ---------------------------------------------------
 extensions = [
     'sphinx.ext.autodoc',  # Pulls docstrings from Python code
-    'sphinx.ext.napoleon', # Supports Google and NumPy style docstrings
+    'sphinx.ext.napoleon',  # Supports Google and NumPy style docstrings
     'myst_parser',         # Allows writing in Markdown
-    'sphinx.ext.viewcode', # Link to the source code
+    'sphinx.ext.viewcode',  # Link to the source code
 ]
 
 # -- Options for HTML output -------------------------------------------

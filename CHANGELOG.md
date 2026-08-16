@@ -66,3 +66,20 @@ Observatory.step() now safely guards against being called before watch() or afte
 ## Changed
 
 - Introduced BaseStore ABC to standardize the storage backend interface. MemoryStore and SQLiteStore now inherit from it, replacing fragile hasattr checks.
+
+## [0.5.0] -  2026-08-16
+
+## Added
+
+- Thread-Safety: Added threading.RLock to Registry, EventBus, and BaseCollector to prevent crashes in multi-threaded environments (e.g., Pipeline Parallelism).
+- Context Manager: You can now use with Observatory(model) as obs: for cleaner lifecycle management.
+
+## Changed
+
+- Attention Analysis: Replaced the fragile _attn_weights name suffix with a robust is_attention_weights metadata flag.
+- Embedding Detection: Improved heuristic in EmbeddingDriftAnalyzer to check parameter names alongside shapes.
+
+## Fixed
+
+- Console Reporter: Long layer names are now safely truncated with ... to maintain table alignment.
+- Attention Buffer: Fixed a bug where AttentionHealthAnalyzer would silently skip analysis if the layer buffer contained mixed tensors (output + weights).
