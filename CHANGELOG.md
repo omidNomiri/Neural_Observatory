@@ -83,3 +83,10 @@ Observatory.step() now safely guards against being called before watch() or afte
 
 - Console Reporter: Long layer names are now safely truncated with ... to maintain table alignment.
 - Attention Buffer: Fixed a bug where AttentionHealthAnalyzer would silently skip analysis if the layer buffer contained mixed tensors (output + weights).
+
+## [0.5.1] - 2026-09-8
+
+## Added
+
+- Comprehensive test suite for core framework components (LifecycleManager, EventBus, Registry, SQLiteStore).
+- Verified thread-safety and exception handling in core systems.
