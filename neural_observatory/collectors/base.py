@@ -103,26 +103,30 @@ class BaseCollector(ABC):
     @staticmethod
     def _safe_numpy(tensor: Any, *, move_to_cpu: bool = True) -> Optional[np.ndarray]:
         """
-        Convert tensor to numpy safely.
-        
-        detach() and cpu() can be no-ops. We MUST clone() because inplace ops 
-        (like ReLU(inplace=True) or zero_grad()) will silently corrupt our 
-        stored snapshots otherwise.
+        Convert tensor to a safe NumPy snapshot.
+
+        NumPy arrays must live in CPU memory, so CUDA/MPS tensors are always
+        copied to CPU before conversion. The returned array is also copied
+        to break any aliasing with the model's live storage.
         """
         try:
             import torch
+
             if isinstance(tensor, torch.Tensor):
                 detached = tensor.detach()
-                if move_to_cpu and detached.device.type != "cpu":
+
+                if detached.device.type != "cpu":
                     detached = detached.cpu()
-                # Force a copy to break aliasing with the model's live storage
+
                 arr = detached.float().clone().numpy()
                 return np.array(arr, copy=True)
+
         except Exception:
-            pass
-        
+            return None
+
         if isinstance(tensor, np.ndarray):
             return tensor.copy()
+
         return None
 
     @staticmethod
