@@ -1,10 +1,11 @@
 """Regression tests for storage backend wiring and misc bugfixes."""
 import inspect
 
-import torch
+import numpy as np
 import torch.nn as nn
 
 from neural_observatory import Observatory, ObservatoryConfig
+from neural_observatory.collectors.base import Observation
 from neural_observatory.storage.memory_store import MemoryStore
 from neural_observatory.storage.sqlite_store import SQLiteStore
 from conftest import run_training_steps
@@ -73,3 +74,85 @@ def test_hook_manager_does_not_double_attach_shared_module():
     assert not {"act_a", "act_b"} <= attached_names, (
         "Both names got hooks attached for a single shared module instance."
     )
+
+
+def test_repeated_observation_persistence_does_not_duplicate(tmp_path):
+    db_path = str(tmp_path / "observatory.db")
+    store = SQLiteStore(db_path=db_path)
+
+    observation = Observation(
+        layer_name="layer_1",
+        step=1,
+        epoch=0,
+        timestamp=1.0,
+        stats={"mean": 1.0},
+        metadata={},
+        values=np.array([1.0, 2.0, 3.0], dtype=np.float32),
+    )
+
+    store.put(
+        "activations",
+        "layer_1",
+        observation,
+    )
+    store.commit()
+
+    store.put(
+        "activations",
+        "layer_1",
+        observation,
+    )
+    store.commit()
+
+    stored = store.get(
+        collection="activations",
+        layer_name="layer_1",
+    )
+
+    assert len(stored) == 1
+
+
+def test_different_steps_are_stored_separately(tmp_path):
+    db_path = str(tmp_path / "observatory.db")
+    store = SQLiteStore(db_path=db_path)
+
+    first = Observation(
+        layer_name="layer_1",
+        step=1,
+        epoch=0,
+        timestamp=1.0,
+        stats={"mean": 1.0},
+        metadata={},
+        values=np.array([1.0, 2.0, 3.0], dtype=np.float32),
+    )
+
+    second = Observation(
+        layer_name="layer_1",
+        step=2,
+        epoch=0,
+        timestamp=2.0,
+        stats={"mean": 2.0},
+        metadata={},
+        values=np.array([4.0, 5.0, 6.0], dtype=np.float32),
+    )
+
+    store.put(
+        "activations",
+        "layer_1",
+        first,
+    )
+    store.put(
+        "activations",
+        "layer_1",
+        second,
+    )
+    store.commit()
+
+    stored = store.get(
+        collection="activations",
+        layer_name="layer_1",
+    )
+
+    assert len(stored) == 2
+    assert stored[0].step == 1
+    assert stored[1].step == 2

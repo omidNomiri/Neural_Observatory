@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS observations (
     timestamp   REAL    NOT NULL,
     stats       TEXT    NOT NULL,
     metadata    TEXT    NOT NULL,
-    values_blob BLOB
+    values_blob BLOB,
+    UNIQUE (collection, layer_name, step, epoch)
 );
-
 CREATE INDEX IF NOT EXISTS idx_col_layer ON observations (collection, layer_name);
 CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
 """
@@ -58,23 +58,23 @@ class SQLiteStore(BaseStore):
     ) -> None:
         values_blob = self._encode_array(observation.values)
         self._conn.execute(
-            """
-            INSERT INTO observations
-                (collection, layer_name, step, epoch, timestamp,
-                 stats, metadata, values_blob)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                collection,
-                layer_name,
-                observation.step,
-                observation.epoch,
-                observation.timestamp,
-                json.dumps(observation.stats),
-                json.dumps(observation.metadata),
-                values_blob,
-            ),
-        )
+        """
+        INSERT OR IGNORE INTO observations
+            (collection, layer_name, step, epoch, timestamp,
+            stats, metadata, values_blob)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            collection,
+            layer_name,
+            observation.step,
+            observation.epoch,
+            observation.timestamp,
+            json.dumps(observation.stats),
+            json.dumps(observation.metadata),
+            values_blob,
+        ),
+    )
 
     def commit(self) -> None:
         """Commit all pending transactions to disk."""
