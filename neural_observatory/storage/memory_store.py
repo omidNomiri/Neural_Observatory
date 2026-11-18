@@ -62,7 +62,10 @@ class MemoryStore(BaseStore):
             return []
         if run_id is not None:
             items = [o for o in items if o.run_id == run_id]
-        return items[:limit] if limit is not None else items
+        # Negative limits mean no upper bound, matching SQLite's LIMIT.
+        if limit is None or limit < 0:
+            return items
+        return items[:limit]
 
     def get_collection(
         self, collection: str, run_id: Optional[str] = None

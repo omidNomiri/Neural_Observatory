@@ -28,7 +28,8 @@ class BaseStore(ABC):
     ) -> List[Observation]:
         """Retrieve observations for a layer, optionally filtered by ``run_id``.
 
-        If ``limit`` is given, return the first ``limit`` matches.
+        If ``limit`` is given, return the first ``limit`` matches; a negative
+        ``limit`` means no upper bound.
         """
         pass
 

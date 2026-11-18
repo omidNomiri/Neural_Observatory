@@ -3,6 +3,7 @@
 import sqlite3
 
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 from conftest import run_training_steps
@@ -269,3 +270,19 @@ def test_collection_key_order_is_deterministic(tmp_path):
     coll = store.get_collection("activations")
     assert list(coll) == ["layer_a", "layer_z"], "Key order is unstable."
     store.close()
+
+
+@pytest.mark.parametrize("limit", [-1, -2])
+def test_negative_limit_is_unbounded_on_both_backends(tmp_path, limit):
+    """SQLite treats any negative LIMIT as no upper bound; memory must match."""
+    stores = [
+        MemoryStore(max_observations=10),
+        SQLiteStore(db_path=str(tmp_path / f"neg_{limit}.db")),
+    ]
+    for store in stores:
+        for step in range(3):
+            store.put("activations", "layer_1", _make_obs(step=step, run_id="run-a"))
+        store.commit()
+        got = store.get("activations", "layer_1", limit=limit)
+        assert [o.step for o in got] == [0, 1, 2], type(store).__name__
+        store.close()
