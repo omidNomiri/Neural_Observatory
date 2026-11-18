@@ -133,7 +133,7 @@ class HookManager:
         def _forward_hook(module: nn.Module, inp: Any, output: Any) -> None:
             if not self._active:
                 return
-            # Capture step/epoch right now so backward() ties to this exact iteration
+            # Stamp activations with the step running at forward time.
             step = self._step
             epoch = self._epoch
 
@@ -213,9 +213,7 @@ class HookManager:
             if tensor.requires_grad:
                 key = id(tensor)
                 if key not in self._grad_hook_handles:
-                    handle = tensor.register_hook(
-                        self._make_grad_hook(layer_name, step, epoch)
-                    )
+                    handle = tensor.register_hook(self._make_grad_hook(layer_name))
 
                     def _forget(ref: Any, k: int = key) -> None:
                         self._grad_hook_handles.pop(k, None)
@@ -224,18 +222,21 @@ class HookManager:
 
         return _forward_hook
 
-    def _make_grad_hook(self, layer_name: str, step: int, epoch: int) -> Callable:
+    def _make_grad_hook(self, layer_name: str) -> Callable:
         grad_col = self._grad_col
 
         def _grad_hook(grad: torch.Tensor) -> None:
             if not self._active:
                 return
             try:
+                # Read the counters at backward time, not at registration:
+                # a tensor reused across steps keeps its single hook, and the
+                # gradient belongs to whichever step is running now.
                 grad_col.collect(
                     layer_name=layer_name,
                     data=grad,
-                    step=step,
-                    epoch=epoch,
+                    step=self._step,
+                    epoch=self._epoch,
                 )
             except Exception as exc:
                 logger.debug("Gradient hook error on %s: %s", layer_name, exc)

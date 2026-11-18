@@ -105,6 +105,28 @@ def test_watch_failure_after_attach_detaches_hooks(tiny_model, monkeypatch):
     assert obs.activation_collector.total_observations == 0
 
 
+def test_reused_tensor_gradients_follow_the_current_step():
+    """One tensor living across two steps must stamp each backward with its own step."""
+    model = Passthrough()
+    obs = Observatory(model, config=ObservatoryConfig(max_observations=50))
+    obs.watch()
+
+    x = torch.randn(4, requires_grad=True)
+    obs.step(step=0, epoch=0)
+    model(x).sum().backward()
+    x.grad = None
+
+    obs.step(step=1, epoch=0)
+    model(x).sum().backward()
+
+    grads = obs.gradient_collector.get("root")
+    assert len(grads) == 2, f"Expected one gradient per step, got {len(grads)}."
+    assert [g.step for g in grads] == [0, 1], (
+        "Gradient hook stayed bound to the step of the first forward."
+    )
+    obs.stop()
+
+
 def test_stop_then_watch_recollects_gradients_cleanly():
     model = Passthrough()
     obs = Observatory(model, config=ObservatoryConfig(max_observations=50))
