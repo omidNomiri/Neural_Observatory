@@ -48,7 +48,7 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
             return None
 
         features = obs.values
-        targets = obs.metadata["targets"]
+        targets = np.asarray(obs.metadata["targets"])
 
         # Handle Transformer/NLP outputs (batch, seq, dim)
         # In Transformers, token 0 is the [CLS] token representing the whole sample.

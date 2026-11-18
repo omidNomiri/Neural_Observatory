@@ -160,10 +160,11 @@ class HookManager:
             try:
                 metadata = {"shape": list(tensor.shape), "dtype": str(tensor.dtype)}
 
-                # Attach targets if this is the configured Neural Collapse layer
+                # Attach targets if this is the configured Neural Collapse layer.
+                # tolist() keeps metadata JSON-serializable for SQLite and copies
+                # the values so later mutations of the user's tensor can't leak in.
                 if self._config.neural_collapse_layer == layer_name and self._targets is not None:
-                    targets_np = self._targets.detach().cpu().numpy()
-                    metadata["targets"] = targets_np
+                    metadata["targets"] = self._targets.detach().cpu().tolist()
 
                 act_col.collect(
                     layer_name=layer_name,
