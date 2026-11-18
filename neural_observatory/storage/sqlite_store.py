@@ -164,7 +164,8 @@ class SQLiteStore(BaseStore):
         limit: Optional[int] = None,
         run_id: Optional[str] = None,
     ) -> List[Observation]:
-        # run_id breaks ties between runs so retrieval order is deterministic.
+        # Ordering spans the full identity key, so ties across epochs and
+        # runs break deterministically.
         q = (
             "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
             "FROM observations WHERE collection=? AND layer_name=? "
@@ -173,7 +174,7 @@ class SQLiteStore(BaseStore):
         if run_id is not None:
             q += "AND run_id=? "
             params = (*params, run_id)
-        q += "ORDER BY step, seq, run_id"
+        q += "ORDER BY step, epoch, seq, run_id"
         if limit is not None:
             q += " LIMIT ?"
             params = (*params, limit)
@@ -193,7 +194,7 @@ class SQLiteStore(BaseStore):
         if run_id is not None:
             q += "AND run_id=? "
             params = (*params, run_id)
-        q += "ORDER BY step, seq, run_id"
+        q += "ORDER BY step, epoch, seq, run_id"
         with self._lock:
             rows = self._conn.execute(q, params).fetchall()
 

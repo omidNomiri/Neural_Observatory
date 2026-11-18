@@ -198,3 +198,28 @@ def test_get_filters_by_run_id(tmp_path):
     coll = store.get_collection("activations", run_id="run-b")
     assert [o.run_id for o in coll["layer_1"]] == ["run-b"]
     store.close()
+
+
+def test_epoch_breaks_ties_within_one_run(tmp_path):
+    """Same step/seq/run_id in two epochs must retrieve in epoch order."""
+    store = SQLiteStore(db_path=str(tmp_path / "epochs.db"))
+    # Insert epoch 1 first so insertion order differs from epoch order.
+    store.put(
+        "activations",
+        "layer_1",
+        _make_obs(step=0, epoch=1, seq=0, run_id="run-a", value=2.0),
+    )
+    store.put(
+        "activations",
+        "layer_1",
+        _make_obs(step=0, epoch=0, seq=0, run_id="run-a", value=1.0),
+    )
+    store.commit()
+
+    stored = store.get("activations", "layer_1")
+    assert [o.epoch for o in stored] == [0, 1], "Epoch tie-break is missing."
+    assert [float(o.values[0]) for o in stored] == [1.0, 2.0]
+
+    coll = store.get_collection("activations")
+    assert [o.epoch for o in coll["layer_1"]] == [0, 1]
+    store.close()
