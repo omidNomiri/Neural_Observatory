@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -32,6 +32,7 @@ class ParameterCollector(BaseCollector):
         self._storage = storage
         self._baseline_values: Dict[str, np.ndarray] = {}
         self._baseline_norms: Dict[str, float] = {}
+        self._last_snapshot: Optional[Tuple[int, int]] = None
 
     def collect(
         self,
@@ -86,10 +87,15 @@ class ParameterCollector(BaseCollector):
     ) -> None:
         if not self._config.should_collect_parameters(step):
             return
+        # report() may run many times at the same (step, epoch); parameters
+        # cannot have changed between them, so snapshot each pair only once.
+        if self._last_snapshot == (step, epoch):
+            return
 
         for name, param in model.named_parameters():
             if param.requires_grad:
                 self.collect(name, param, step, epoch)
+        self._last_snapshot = (step, epoch)
 
     def get_drift(self, layer_name: str) -> Optional[float]:
         obs = self.latest(layer_name, n=1)
@@ -104,6 +110,7 @@ class ParameterCollector(BaseCollector):
         super().clear()
         self._baseline_values.clear()
         self._baseline_norms.clear()
+        self._last_snapshot = None
 
 
 def _true_drift(current: np.ndarray, baseline: np.ndarray) -> float:
