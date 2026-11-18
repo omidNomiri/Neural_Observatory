@@ -10,7 +10,7 @@ from conftest import run_training_steps
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.collectors.base import Observation
 from neural_observatory.storage.memory_store import MemoryStore
-from neural_observatory.storage.sqlite_store import SQLiteStore
+from neural_observatory.storage.sqlite_store import _SCHEMA, SQLiteStore
 
 
 def _make_obs(step=0, epoch=0, seq=0, run_id="", value=1.0, layer="layer_1"):
@@ -137,4 +137,26 @@ def test_v1_schema_gains_run_identity(tmp_path):
     assert (
         len(store.get("activations", "layer_1")) == 2
     ), "A new run must coexist with legacy rows at the same step/seq."
+    store.close()
+
+
+def test_remigration_keeps_existing_run_ids(tmp_path):
+    """A run-identity database stamped with an old version must survive re-migration."""
+    db_path = str(tmp_path / "restamped.db")
+    conn = sqlite3.connect(db_path)
+    conn.executescript(_SCHEMA)
+    for run in ("run-a", "run-b"):
+        conn.execute(
+            "INSERT INTO observations (collection, layer_name, step, epoch, seq, run_id, timestamp, stats, metadata) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("activations", "layer_1", 0, 0, 0, run, 0.0, '{"mean": 1.0}', "{}"),
+        )
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+
+    store = SQLiteStore(db_path=db_path)
+    stored = store.get("activations", "layer_1")
+    assert len(stored) == 2, "Re-migration collapsed rows that differ only by run_id."
+    assert {o.run_id for o in stored} == {"run-a", "run-b"}
     store.close()

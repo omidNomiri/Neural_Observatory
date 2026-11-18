@@ -70,43 +70,47 @@ class SQLiteStore(BaseStore):
             for row in self._conn.execute("PRAGMA table_info(observations)").fetchall()
         }
         if not columns:
-            self._conn.executescript(_SCHEMA)
-        else:
-            # Older tables lack seq and/or run_id. Rebuild with the full
-            # identity key; INSERT OR IGNORE collapses duplicates that the
-            # coarser old key could not represent. Legacy rows get seq 0 and
-            # an empty run marker.
-            seq_source = "seq" if "seq" in columns else "0"
-            self._conn.executescript(f"""
-                BEGIN;
-                CREATE TABLE observations_new (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    collection  TEXT    NOT NULL,
-                    layer_name  TEXT    NOT NULL,
-                    step        INTEGER NOT NULL,
-                    epoch       INTEGER NOT NULL,
-                    seq         INTEGER NOT NULL DEFAULT 0,
-                    run_id      TEXT    NOT NULL DEFAULT '',
-                    timestamp   REAL    NOT NULL,
-                    stats       TEXT    NOT NULL,
-                    metadata    TEXT    NOT NULL,
-                    values_blob BLOB,
-                    UNIQUE (collection, layer_name, step, epoch, seq, run_id)
-                );
-                INSERT OR IGNORE INTO observations_new
-                    (collection, layer_name, step, epoch, seq, run_id,
-                     timestamp, stats, metadata, values_blob)
-                SELECT collection, layer_name, step, epoch, {seq_source}, '',
-                       timestamp, stats, metadata, values_blob
-                FROM observations;
-                DROP TABLE observations;
-                ALTER TABLE observations_new RENAME TO observations;
-                CREATE INDEX idx_col_layer ON observations (collection, layer_name);
-                CREATE INDEX idx_step      ON observations (step);
-                COMMIT;
-                """)
-        self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
-        self._conn.commit()
+            self._conn.executescript(
+                f"BEGIN;\n{_SCHEMA}\nPRAGMA user_version = {_SCHEMA_VERSION};\nCOMMIT;"
+            )
+            return
+
+        # Older tables may lack seq and/or run_id. Missing columns default to
+        # 0 / ''; existing values are carried over so re-running this migration
+        # never discards run identities. The version stamp commits in the same
+        # transaction as the rebuild, so an interrupted migration is simply
+        # retried on the next open.
+        seq_source = "seq" if "seq" in columns else "0"
+        run_source = "run_id" if "run_id" in columns else "''"
+        self._conn.executescript(f"""
+            BEGIN;
+            CREATE TABLE observations_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                collection  TEXT    NOT NULL,
+                layer_name  TEXT    NOT NULL,
+                step        INTEGER NOT NULL,
+                epoch       INTEGER NOT NULL,
+                seq         INTEGER NOT NULL DEFAULT 0,
+                run_id      TEXT    NOT NULL DEFAULT '',
+                timestamp   REAL    NOT NULL,
+                stats       TEXT    NOT NULL,
+                metadata    TEXT    NOT NULL,
+                values_blob BLOB,
+                UNIQUE (collection, layer_name, step, epoch, seq, run_id)
+            );
+            INSERT OR IGNORE INTO observations_new
+                (collection, layer_name, step, epoch, seq, run_id,
+                 timestamp, stats, metadata, values_blob)
+            SELECT collection, layer_name, step, epoch, {seq_source}, {run_source},
+                   timestamp, stats, metadata, values_blob
+            FROM observations;
+            DROP TABLE observations;
+            ALTER TABLE observations_new RENAME TO observations;
+            CREATE INDEX idx_col_layer ON observations (collection, layer_name);
+            CREATE INDEX idx_step      ON observations (step);
+            PRAGMA user_version = {_SCHEMA_VERSION};
+            COMMIT;
+            """)
 
     def put(
         self,
