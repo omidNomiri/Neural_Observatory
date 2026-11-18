@@ -145,6 +145,7 @@ class Observatory:
             )
         except Exception as e:
             logger.error("Initialization failed during watch(): %s", e, exc_info=True)
+            self._hook_manager.detach()
             self._lifecycle.stop()
             raise RuntimeError(f"Failed to start monitoring: {e}") from e
 

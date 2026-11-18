@@ -4,6 +4,7 @@ Neural Observatory — Hook Manager
 from __future__ import annotations
 
 import logging
+import weakref
 from typing import Any, Callable, Dict, List, Optional
 
 import torch
@@ -33,6 +34,10 @@ class HookManager:
         self._active: bool = False
         self._targets: Optional[torch.Tensor] = None
         self.hook_handles: Dict[str, List[Any]] = {}
+        # id(tensor) -> (weakref, RemovableHandle). Tensors can't go into a
+        # WeakSet (weakref equality falls back to tensor ==, which is
+        # elementwise), so identity is tracked by id with a death callback.
+        self._grad_hook_handles: Dict[int, Any] = {}
 
     def attach(self, layer_filter: Optional[List[str]] = None) -> None:
         self.detach()
@@ -42,40 +47,50 @@ class HookManager:
         inplace_layers: List[str] = []
         seen_module_ids: set = set()
 
-        for name, module in self._model.named_modules():
-            if not name:
-                continue
+        try:
+            for name, module in self._model.named_modules():
+                if not name:
+                    # The root module itself: only hook it when it is a leaf
+                    # (e.g. a bare nn.Linear), otherwise every child output
+                    # would be collected twice.
+                    if list(module.children()):
+                        continue
+                    name = "root"
 
-            layer_type = module.__class__.__name__
+                layer_type = module.__class__.__name__
 
-            if layer_filter and name not in layer_filter:
-                continue
+                if layer_filter and name not in layer_filter:
+                    continue
 
-            if not cfg.should_monitor_layer(name, layer_type):
-                continue
+                if not cfg.should_monitor_layer(name, layer_type):
+                    continue
 
-            # Skip tied/shared weights to avoid duplicate hooks
-            module_id = id(module)
-            if module_id in seen_module_ids:
-                continue
-            seen_module_ids.add(module_id)
+                # Skip tied/shared weights to avoid duplicate hooks
+                module_id = id(module)
+                if module_id in seen_module_ids:
+                    continue
+                seen_module_ids.add(module_id)
 
-            if getattr(module, "inplace", False):
-                inplace_layers.append(name)
+                if getattr(module, "inplace", False):
+                    inplace_layers.append(name)
 
-            handles: List[Any] = []
+                handles: List[Any] = []
 
-            # We use tensor-level hooks instead of module.register_full_backward_hook.
-            # Module backward hooks wrap the output in an autograd Function, which
-            # crashes hard if the user has inplace=True ops downstream (e.g. ResNet).
-            # Tensor hooks just bind to the specific output tensor and are GC'd normally.
-            fwd_handle = module.register_forward_hook(
-                self._make_forward_hook(name)
-            )
-            handles.append(fwd_handle)
+                # We use tensor-level hooks instead of module.register_full_backward_hook.
+                # Module backward hooks wrap the output in an autograd Function, which
+                # crashes hard if the user has inplace=True ops downstream (e.g. ResNet).
+                # Tensor hooks just bind to the specific output tensor and are GC'd normally.
+                fwd_handle = module.register_forward_hook(
+                    self._make_forward_hook(name)
+                )
+                handles.append(fwd_handle)
 
-            self.hook_handles[name] = handles
-            attached += 1
+                self.hook_handles[name] = handles
+                attached += 1
+        except Exception:
+            # Never leave half-attached hooks on the user's model.
+            self.detach()
+            raise
 
         if inplace_layers:
             logger.warning(
@@ -95,6 +110,10 @@ class HookManager:
                 h.remove()
                 count += 1
         self.hook_handles.clear()
+        for ref, handle in list(self._grad_hook_handles.values()):
+            if ref() is not None:
+                handle.remove()
+        self._grad_hook_handles.clear()
         if count:
             logger.info("Removed %d hooks.", count)
 
@@ -112,6 +131,8 @@ class HookManager:
         grad_col = self._grad_col
 
         def _forward_hook(module: nn.Module, inp: Any, output: Any) -> None:
+            if not self._active:
+                return
             # Capture step/epoch right now so backward() ties to this exact iteration
             step = self._step
             epoch = self._epoch
@@ -187,13 +208,22 @@ class HookManager:
             except Exception as exc:
                 logger.debug("Forward hook error on %s: %s", layer_name, exc)
 
-            # THIS WAS MISSING! We need to re-attach the gradient hook.
+            # One gradient hook per tensor: repeated forwards can return the
+            # same tensor object, and re-registering would multiply observations.
             if tensor.requires_grad:
-                tensor.register_hook(
-                    self._make_grad_hook(layer_name, step, epoch)
-                )
+                key = id(tensor)
+                if key not in self._grad_hook_handles:
+                    handle = tensor.register_hook(
+                        self._make_grad_hook(layer_name, step, epoch)
+                    )
+
+                    def _forget(ref: Any, k: int = key) -> None:
+                        self._grad_hook_handles.pop(k, None)
+
+                    self._grad_hook_handles[key] = (weakref.ref(tensor, _forget), handle)
 
         return _forward_hook
+
     def _make_grad_hook(self, layer_name: str, step: int, epoch: int) -> Callable:
         grad_col = self._grad_col
 
