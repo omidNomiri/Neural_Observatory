@@ -73,6 +73,6 @@ def test_clear_keeps_the_init_baseline():
     pc.collect("w", weight, step=2)
 
     assert len(pc.get("w")) == 1, "clear() did not empty the observation buffer."
-    assert pc.get_drift("w") == drift_before, (
-        "clear() re-baselined; drift_from_init must stay relative to initialization."
-    )
+    assert (
+        pc.get_drift("w") == drift_before
+    ), "clear() re-baselined; drift_from_init must stay relative to initialization."

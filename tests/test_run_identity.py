@@ -174,9 +174,10 @@ def test_cross_run_ties_break_deterministically(tmp_path):
     store.commit()
 
     stored = store.get("activations", "layer_1")
-    assert [o.run_id for o in stored] == ["run-a", "run-b"], (
-        "Same step/seq from different runs must order deterministically by run_id."
-    )
+    assert [o.run_id for o in stored] == [
+        "run-a",
+        "run-b",
+    ], "Same step/seq from different runs must order deterministically by run_id."
     store.close()
 
 

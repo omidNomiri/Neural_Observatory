@@ -164,9 +164,9 @@ def test_shared_tensor_reaches_every_monitored_layer():
     out.sum().backward()
 
     assert len(obs.gradient_collector.get("0")) == 1
-    assert len(obs.gradient_collector.get("1")) == 1, (
-        "Only the first layer attached to the shared tensor received a gradient."
-    )
+    assert (
+        len(obs.gradient_collector.get("1")) == 1
+    ), "Only the first layer attached to the shared tensor received a gradient."
     obs.stop()
 
 
@@ -186,7 +186,8 @@ def test_gradient_accumulation_follows_the_documented_contract(tiny_model):
 
     layer = obs.gradient_collector.layer_names[0]
     grads = obs.gradient_collector.get(layer)
-    assert [g.step for g in grads] == [0, 1], (
-        "Per-micro-batch step() + immediate backward must attribute each gradient."
-    )
+    assert [g.step for g in grads] == [
+        0,
+        1,
+    ], "Per-micro-batch step() + immediate backward must attribute each gradient."
     obs.stop()
