@@ -24,6 +24,7 @@ class Observation:
     stats: Dict[str, float] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     seq: int = 0
+    run_id: str = ""
 
 
 @dataclass
@@ -58,9 +59,15 @@ class LayerBuffer:
 class BaseCollector(ABC):
     """Base class for grabbing data off hooks and making it memory-safe."""
 
-    def __init__(self, max_observations: int = 1000, store_on_cpu: bool = True) -> None:
+    def __init__(
+        self,
+        max_observations: int = 1000,
+        store_on_cpu: bool = True,
+        run_id: str = "",
+    ) -> None:
         self._max_observations = max_observations
         self._store_on_cpu = store_on_cpu
+        self._run_id = run_id
         self._buffers: Dict[str, LayerBuffer] = {}
         self._lock = threading.RLock()
         self._total = 0
@@ -109,11 +116,12 @@ class BaseCollector(ABC):
             return self._buffers[layer_name]
 
     def _record(self, layer_name: str, obs: Observation) -> None:
-        # seq is assigned under the lock and never reset by clear(), so an
-        # observation's identity stays unique across buffer resets and
-        # repeated persistence of the same buffers is idempotent.
+        # Identity is (run_id, seq): seq never resets on clear(), and run_id
+        # separates sessions, so re-persisting the same buffers is idempotent
+        # while two runs sharing a store never collide.
         with self._lock:
             obs.seq = self._seq
+            obs.run_id = self._run_id
             self._seq += 1
             self._get_or_create_buffer(layer_name).add(obs)
             self._total += 1

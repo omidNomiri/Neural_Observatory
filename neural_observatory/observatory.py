@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -80,10 +81,14 @@ class Observatory:
         self._registry = Registry()
         self._event_bus = EventBus()
 
+        # One id per monitoring session, shared by all collectors so their
+        # observations stay distinguishable when runs share a storage backend.
+        self._run_id = uuid.uuid4().hex
+
         # Collectors
-        self._activation_collector = ActivationCollector(config=self._config)
-        self._gradient_collector = GradientCollector(config=self._config)
-        self._parameter_collector = ParameterCollector(config=self._config)
+        self._activation_collector = ActivationCollector(config=self._config, run_id=self._run_id)
+        self._gradient_collector = GradientCollector(config=self._config, run_id=self._run_id)
+        self._parameter_collector = ParameterCollector(config=self._config, run_id=self._run_id)
         self._metadata_collector = MetadataCollector()
 
         # Hooks
@@ -338,6 +343,11 @@ class Observatory:
     def config(self) -> ObservatoryConfig:
         """Get the configuration object."""
         return self._config
+
+    @property
+    def run_id(self) -> str:
+        """Unique identifier of this monitoring session."""
+        return self._run_id
 
     @property
     def state(self) -> MonitoringState:

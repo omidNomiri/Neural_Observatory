@@ -19,7 +19,7 @@ from ..collectors.base import Observation
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
@@ -29,11 +29,12 @@ CREATE TABLE IF NOT EXISTS observations (
     step        INTEGER NOT NULL,
     epoch       INTEGER NOT NULL,
     seq         INTEGER NOT NULL DEFAULT 0,
+    run_id      TEXT    NOT NULL DEFAULT '',
     timestamp   REAL    NOT NULL,
     stats       TEXT    NOT NULL,
     metadata    TEXT    NOT NULL,
     values_blob BLOB,
-    UNIQUE (collection, layer_name, step, epoch, seq)
+    UNIQUE (collection, layer_name, step, epoch, seq, run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_col_layer ON observations (collection, layer_name);
 CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
@@ -67,13 +68,14 @@ class SQLiteStore(BaseStore):
         }
         if not columns:
             self._conn.executescript(_SCHEMA)
-        elif "seq" not in columns:
-            # Pre-0.5.2 table: identity was (collection, layer, step, epoch),
-            # which silently dropped distinct same-step observations. Rebuild
-            # with the seq column; INSERT OR IGNORE collapses any legacy
-            # duplicates that the old coarse key could not represent.
+        else:
+            # Older tables lack seq and/or run_id. Rebuild with the full
+            # identity key; INSERT OR IGNORE collapses duplicates that the
+            # coarser old key could not represent. Legacy rows get seq 0 and
+            # an empty run marker.
+            seq_source = "seq" if "seq" in columns else "0"
             self._conn.executescript(
-                """
+                f"""
                 BEGIN;
                 CREATE TABLE observations_new (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,16 +84,17 @@ class SQLiteStore(BaseStore):
                     step        INTEGER NOT NULL,
                     epoch       INTEGER NOT NULL,
                     seq         INTEGER NOT NULL DEFAULT 0,
+                    run_id      TEXT    NOT NULL DEFAULT '',
                     timestamp   REAL    NOT NULL,
                     stats       TEXT    NOT NULL,
                     metadata    TEXT    NOT NULL,
                     values_blob BLOB,
-                    UNIQUE (collection, layer_name, step, epoch, seq)
+                    UNIQUE (collection, layer_name, step, epoch, seq, run_id)
                 );
                 INSERT OR IGNORE INTO observations_new
-                    (collection, layer_name, step, epoch, seq,
+                    (collection, layer_name, step, epoch, seq, run_id,
                      timestamp, stats, metadata, values_blob)
-                SELECT collection, layer_name, step, epoch, 0,
+                SELECT collection, layer_name, step, epoch, {seq_source}, '',
                        timestamp, stats, metadata, values_blob
                 FROM observations;
                 DROP TABLE observations;
@@ -113,24 +116,25 @@ class SQLiteStore(BaseStore):
         values_blob = self._encode_array(observation.values)
         with self._lock:
             self._conn.execute(
-            """
-            INSERT OR IGNORE INTO observations
-                (collection, layer_name, step, epoch, seq, timestamp,
-                stats, metadata, values_blob)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                collection,
-                layer_name,
-                observation.step,
-                observation.epoch,
-                observation.seq,
-                observation.timestamp,
-                json.dumps(observation.stats),
-                json.dumps(observation.metadata),
-                values_blob,
-            ),
-        )
+                """
+                INSERT OR IGNORE INTO observations
+                    (collection, layer_name, step, epoch, seq, run_id, timestamp,
+                     stats, metadata, values_blob)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    collection,
+                    layer_name,
+                    observation.step,
+                    observation.epoch,
+                    observation.seq,
+                    observation.run_id,
+                    observation.timestamp,
+                    json.dumps(observation.stats),
+                    json.dumps(observation.metadata),
+                    values_blob,
+                ),
+            )
 
     def commit(self) -> None:
         """Commit all pending transactions to disk."""
@@ -150,7 +154,7 @@ class SQLiteStore(BaseStore):
         limit: Optional[int] = None,
     ) -> List[Observation]:
         q = (
-            "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
+            "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
             "FROM observations WHERE collection=? AND layer_name=? ORDER BY step, seq"
         )
         params: tuple = (collection, layer_name)
@@ -165,7 +169,7 @@ class SQLiteStore(BaseStore):
     def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
+                "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
                 "FROM observations WHERE collection=? ORDER BY step, seq",
                 (collection,),
             ).fetchall()
@@ -215,12 +219,13 @@ class SQLiteStore(BaseStore):
         return np.load(io.BytesIO(blob), allow_pickle=False)
 
     def _row_to_obs(self, row: tuple) -> Observation:
-        layer_name, step, epoch, seq, timestamp, stats_j, meta_j, values_blob = row
+        layer_name, step, epoch, seq, run_id, timestamp, stats_j, meta_j, values_blob = row
         return Observation(
             layer_name=layer_name,
             step=step,
             epoch=epoch,
             seq=seq,
+            run_id=run_id,
             timestamp=timestamp,
             stats=json.loads(stats_j),
             metadata=json.loads(meta_j),

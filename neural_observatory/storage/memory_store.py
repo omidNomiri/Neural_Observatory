@@ -33,14 +33,14 @@ class MemoryStore(BaseStore):
         buf = col[layer_name]
         keys = keys_col[layer_name]
 
-        key = (observation.step, observation.epoch, observation.seq)
+        key = (observation.step, observation.epoch, observation.seq, observation.run_id)
         if key in keys:
             return
         # The deque silently evicts the oldest item once full; drop its key
         # too so the key set stays bounded and evicted data can return.
         if buf.maxlen and len(buf) == buf.maxlen:
             oldest = buf[0]
-            keys.discard((oldest.step, oldest.epoch, oldest.seq))
+            keys.discard((oldest.step, oldest.epoch, oldest.seq, oldest.run_id))
         buf.append(observation)
         keys.add(key)
 

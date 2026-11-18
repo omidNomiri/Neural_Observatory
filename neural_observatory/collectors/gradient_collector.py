@@ -20,11 +20,13 @@ class GradientCollector(BaseCollector):
         self,
         config: Optional[ObservatoryConfig] = None,
         storage: Optional[Any] = None,
+        run_id: str = "",
     ) -> None:
         cfg = config or ObservatoryConfig()
         super().__init__(
             max_observations=cfg.max_observations,
             store_on_cpu=cfg.store_on_cpu,
+            run_id=run_id,
         )
         self._config = cfg
         self._storage = storage
