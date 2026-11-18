@@ -119,9 +119,11 @@ class BaseCollector(ABC):
             return self._buffers[layer_name]
 
     def _record(self, layer_name: str, obs: Observation) -> None:
-        # Identity is (run_id, seq): seq never resets on clear(), and run_id
-        # separates sessions, so re-persisting the same buffers is idempotent
-        # while two runs sharing a store never collide.
+        # Identity is (run_id, collection, seq): each collector keeps its own
+        # counter, so seq is unique within a collection, not across the run.
+        # seq never resets on clear(), and run_id separates sessions, so
+        # re-persisting the same buffers is idempotent while two runs sharing
+        # a store never collide.
         with self._lock:
             obs.seq = self._seq
             obs.run_id = self._run_id
