@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
 from ..core.configuration import ObservatoryConfig
-from .base import BaseCollector, Dict, Observation
+from .base import BaseCollector, Observation
 
 logger = logging.getLogger(__name__)
 
