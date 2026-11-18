@@ -1,8 +1,8 @@
-"""End-to-end training-loop regressions required by the 0.5.2 roadmap.
+"""End-to-end training loops through the public API.
 
-These drive the public API through real training loops on every supported
-execution mode: CPU eager, inplace ops, inference (no grad), torch.compile,
-stats-only snapshots, and CUDA when a device is present.
+These drive real training on every supported execution mode: CPU eager,
+inplace ops, inference (no grad), torch.compile, stats-only snapshots,
+and CUDA when a device is present.
 """
 import json
 

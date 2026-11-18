@@ -1,4 +1,4 @@
-"""Regression tests for hook attachment coverage and gradient-hook lifecycle (0.5.2)."""
+"""Every monitored module gets hooks, and gradient hooks follow the live step."""
 import pytest
 import torch
 import torch.nn as nn

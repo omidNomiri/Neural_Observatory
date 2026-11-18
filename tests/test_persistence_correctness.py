@@ -1,4 +1,4 @@
-"""Regression tests for observation identity, dedup, limits, and schema migration (0.5.2)."""
+"""Observation identity, dedup, buffer limits, and schema migration."""
 import sqlite3
 
 import numpy as np
@@ -171,7 +171,7 @@ CREATE TABLE observations (
 
 
 def test_old_schema_database_is_migrated(tmp_path):
-    """A pre-0.5.2 database must keep its rows and gain the seq identity column."""
+    """A legacy database must keep its rows and gain the seq identity column."""
     db_path = str(tmp_path / "legacy.db")
     conn = sqlite3.connect(db_path)
     conn.executescript(_OLD_SCHEMA)

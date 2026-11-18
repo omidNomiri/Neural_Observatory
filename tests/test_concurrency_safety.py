@@ -1,4 +1,4 @@
-"""Regression tests for thread-safety, lifecycle tolerance, and snapshot guards (0.5.2)."""
+"""Collectors and lifecycle calls must stay correct under concurrent use."""
 import sys
 import threading
 import time

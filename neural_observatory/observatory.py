@@ -99,13 +99,8 @@ class Observatory:
             config=self._config,
         )
 
-        # Storage — actually respect `config.storage_backend` instead of
-        # unconditionally creating (and never using) a MemoryStore. Collectors
-        # remain the source of truth for in-flight analysis (they keep their
-        # own bounded per-layer buffers), but the configured backend is now a
-        # real, functioning persistence layer that report-time snapshots are
-        # mirrored into, so `storage_backend="sqlite"` genuinely persists data
-        # instead of silently behaving like "memory" regardless of config.
+        # Collectors own the in-flight buffers; the store only receives
+        # report-time snapshots.
         self._store = self._create_store(self._config)
 
         # State
@@ -174,7 +169,12 @@ class Observatory:
         self._store.close()
 
     def clear(self) -> None:
-        """Clear all collected observations while keeping hooks active."""
+        """Empty the in-memory collector buffers; hooks stay attached.
+
+        Persisted history in the storage backend is intentionally kept.
+        Sequence numbers keep increasing, so data collected after a clear()
+        never collides with what was already stored.
+        """
         self._activation_collector.clear()
         self._gradient_collector.clear()
         self._parameter_collector.clear()

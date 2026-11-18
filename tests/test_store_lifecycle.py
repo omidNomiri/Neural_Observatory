@@ -1,4 +1,4 @@
-"""Regression tests for store close/commit lifecycle and Observatory exit (0.5.2)."""
+"""Close and exit paths: pending writes are committed and nothing is orphaned."""
 import sqlite3
 
 import pytest

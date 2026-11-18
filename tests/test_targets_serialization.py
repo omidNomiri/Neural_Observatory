@@ -1,4 +1,4 @@
-"""Regression tests for JSON-safe target capture and Neural Collapse compatibility (0.5.2)."""
+"""Captured targets must be JSON-safe and still feed the Neural Collapse analyzer."""
 import json
 
 import numpy as np

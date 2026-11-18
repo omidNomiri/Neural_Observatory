@@ -30,8 +30,8 @@ A scientific instrumentation framework that allows researchers and engineers to 
 | ----------- | --- | ---- | --- | --- |
 | Activations | ✅ | ✅ | ✅ | ❌ |
 | Gradients | ✅ | ✅ | ✅ | ❌ |
-| SQLite | ✅ | ✅ | ✅ | ✅ |
-| HTML Report | ✅ | ✅ | ✅ | ✅ |
+| SQLite | ✅ | ✅ | ✅ | ❌ |
+| HTML Report | ✅ | ✅ | ✅ | ❌ |
 
 ## Version Compatibility
 

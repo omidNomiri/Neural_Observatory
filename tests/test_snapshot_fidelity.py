@@ -1,4 +1,4 @@
-"""Regression tests for dtype-faithful snapshots and empty-parameter handling (0.5.2)."""
+"""Snapshots keep their original dtype, and empty parameters are handled."""
 import warnings
 
 import numpy as np
