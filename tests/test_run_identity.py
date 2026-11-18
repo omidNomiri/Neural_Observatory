@@ -267,6 +267,27 @@ def test_collection_key_order_is_deterministic(tmp_path):
     )
     store.commit()
 
+    # The UNIQUE auto-index already yields name order and cannot be dropped,
+    # which would mask a missing tie-breaker. Replace the explicit indexes
+    # with one matching the ordering WITHOUT layer_name: the planner skips
+    # the sort and tied rows fall back to insertion order.
+    conn = store._conn
+    conn.execute("DROP INDEX idx_col_layer")
+    conn.execute("DROP INDEX idx_step")
+    conn.execute(
+        "CREATE INDEX idx_test_tie_order "
+        "ON observations (collection, step, epoch, seq, run_id)"
+    )
+    probe = conn.execute(
+        "SELECT layer_name FROM observations WHERE collection=? "
+        "ORDER BY step, epoch, seq, run_id",
+        ("activations",),
+    ).fetchall()
+    assert [r[0] for r in probe] == [
+        "layer_z",
+        "layer_a",
+    ], "Setup no longer exposes the tie."
+
     coll = store.get_collection("activations")
     assert list(coll) == ["layer_a", "layer_z"], "Key order is unstable."
     store.close()
