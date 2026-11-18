@@ -123,7 +123,7 @@ class HookManager:
     def set_epoch(self, epoch: int) -> None:
         self._epoch = epoch
 
-    def set_targets(self, targets: torch.Tensor) -> None:
+    def set_targets(self, targets: Optional[torch.Tensor]) -> None:
         self._targets = targets
 
     def _make_forward_hook(self, layer_name: str) -> Callable:

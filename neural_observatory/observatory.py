@@ -219,8 +219,9 @@ class Observatory:
             
         self._hook_manager.set_step(self._step)
         self._hook_manager.set_epoch(self._epoch)
-        if targets is not None:
-            self._hook_manager.set_targets(targets)
+        # Always forward targets, including None: labels belong to one step
+        # only and must not leak into the next forward.
+        self._hook_manager.set_targets(targets)
 
     # ==================================================================
     # Public API: Analysis and Reporting

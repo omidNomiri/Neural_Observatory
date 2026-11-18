@@ -67,6 +67,24 @@ def test_targets_snapshot_is_independent_of_user_tensor(tiny_model):
     )
 
 
+def test_targets_do_not_leak_into_later_steps(tiny_model):
+    cfg = ObservatoryConfig(neural_collapse_layer="0", max_observations=50)
+    obs = Observatory(tiny_model, config=cfg)
+    obs.watch()
+
+    obs.step(step=0, epoch=0, targets=torch.tensor([0, 1]))
+    _ = tiny_model(torch.randn(2, 8))
+    obs.step(step=1, epoch=0)
+    _ = tiny_model(torch.randn(2, 8))
+    obs.stop()
+
+    acts = obs.activation_collector.get("0")
+    assert acts[0].metadata["targets"] == [0, 1]
+    assert "targets" not in acts[1].metadata, (
+        "Labels from step 0 were attached to a step that provided none."
+    )
+
+
 def test_neural_collapse_analyzer_accepts_list_targets():
     """After a SQLite round-trip targets are lists; the analyzer must cope."""
     cfg = ObservatoryConfig(neural_collapse_layer="l")
