@@ -216,6 +216,15 @@ class Observatory:
             each Observation and to evaluate the configured sample rate
             (``should_collect_activation``/``should_collect_gradient``).
             If `step` is not provided, it auto-increments the internal counter.
+
+        Gradient timing contract:
+            Activations are stamped at forward time; gradients are stamped
+            with the step active at backward time. Finish each step's
+            backward pass before calling ``step()`` again. With gradient
+            accumulation, call ``step()`` before every micro-batch forward
+            and run that micro-batch's backward before moving on. Delaying
+            backward across ``step()`` calls attributes the gradient to the
+            later step; that pattern is not supported.
         """
 
         if not self._lifecycle.is_active:

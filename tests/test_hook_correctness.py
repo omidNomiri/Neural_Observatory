@@ -168,3 +168,25 @@ def test_shared_tensor_reaches_every_monitored_layer():
         "Only the first layer attached to the shared tensor received a gradient."
     )
     obs.stop()
+
+
+def test_gradient_accumulation_follows_the_documented_contract(tiny_model):
+    """step() before each micro-batch, backward before the next step()."""
+    obs = Observatory(tiny_model, config=ObservatoryConfig(max_observations=100))
+    obs.watch()
+    optimizer = torch.optim.SGD(tiny_model.parameters(), lr=0.05)
+    criterion = nn.CrossEntropyLoss()
+
+    optimizer.zero_grad()
+    for micro in range(2):
+        obs.step(step=micro, epoch=0)
+        out = tiny_model(torch.randn(4, 8))
+        criterion(out, torch.randint(0, 4, (4,))).backward()
+    optimizer.step()
+
+    layer = obs.gradient_collector.layer_names[0]
+    grads = obs.gradient_collector.get(layer)
+    assert [g.step for g in grads] == [0, 1], (
+        "Per-micro-batch step() + immediate backward must attribute each gradient."
+    )
+    obs.stop()

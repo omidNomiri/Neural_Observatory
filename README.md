@@ -61,6 +61,10 @@ To ensure stability, please be aware of the following current limitations:
 - No FSDP support
 - TorchScript not tested
 - Quantized models are only partially supported
+- Gradients are attributed to the step active at backward time: finish each
+  step's backward before calling `step()` again. With gradient accumulation,
+  call `step()` before each micro-batch forward and backward that micro-batch
+  before moving on; delayed backward across steps is not supported.
 
 ---
 
