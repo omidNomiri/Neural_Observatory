@@ -162,12 +162,18 @@ class SQLiteStore(BaseStore):
         collection: str,
         layer_name: str,
         limit: Optional[int] = None,
+        run_id: Optional[str] = None,
     ) -> List[Observation]:
+        # run_id breaks ties between runs so retrieval order is deterministic.
         q = (
             "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
-            "FROM observations WHERE collection=? AND layer_name=? ORDER BY step, seq"
+            "FROM observations WHERE collection=? AND layer_name=? "
         )
         params: tuple = (collection, layer_name)
+        if run_id is not None:
+            q += "AND run_id=? "
+            params = (*params, run_id)
+        q += "ORDER BY step, seq, run_id"
         if limit is not None:
             q += " LIMIT ?"
             params = (*params, limit)
@@ -176,13 +182,20 @@ class SQLiteStore(BaseStore):
             rows = self._conn.execute(q, params).fetchall()
         return [self._row_to_obs(r) for r in rows]
 
-    def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
+    def get_collection(
+        self, collection: str, run_id: Optional[str] = None
+    ) -> Dict[str, List[Observation]]:
+        q = (
+            "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
+            "FROM observations WHERE collection=? "
+        )
+        params: tuple = (collection,)
+        if run_id is not None:
+            q += "AND run_id=? "
+            params = (*params, run_id)
+        q += "ORDER BY step, seq, run_id"
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
-                "FROM observations WHERE collection=? ORDER BY step, seq",
-                (collection,),
-            ).fetchall()
+            rows = self._conn.execute(q, params).fetchall()
 
         result: Dict[str, List[Observation]] = {}
         for row in rows:

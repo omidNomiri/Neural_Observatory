@@ -160,3 +160,40 @@ def test_remigration_keeps_existing_run_ids(tmp_path):
     assert len(stored) == 2, "Re-migration collapsed rows that differ only by run_id."
     assert {o.run_id for o in stored} == {"run-a", "run-b"}
     store.close()
+
+
+def test_cross_run_ties_break_deterministically(tmp_path):
+    store = SQLiteStore(db_path=str(tmp_path / "runs.db"))
+    # Insert run-b first so insertion order differs from run_id order.
+    store.put(
+        "activations", "layer_1", _make_obs(step=0, seq=0, run_id="run-b", value=2.0)
+    )
+    store.put(
+        "activations", "layer_1", _make_obs(step=0, seq=0, run_id="run-a", value=1.0)
+    )
+    store.commit()
+
+    stored = store.get("activations", "layer_1")
+    assert [o.run_id for o in stored] == ["run-a", "run-b"], (
+        "Same step/seq from different runs must order deterministically by run_id."
+    )
+    store.close()
+
+
+def test_get_filters_by_run_id(tmp_path):
+    store = SQLiteStore(db_path=str(tmp_path / "runs.db"))
+    store.put(
+        "activations", "layer_1", _make_obs(step=0, seq=0, run_id="run-a", value=1.0)
+    )
+    store.put(
+        "activations", "layer_1", _make_obs(step=0, seq=0, run_id="run-b", value=2.0)
+    )
+    store.commit()
+
+    only_a = store.get("activations", "layer_1", run_id="run-a")
+    assert [o.run_id for o in only_a] == ["run-a"]
+    assert float(only_a[0].values[0]) == 1.0
+
+    coll = store.get_collection("activations", run_id="run-b")
+    assert [o.run_id for o in coll["layer_1"]] == ["run-b"]
+    store.close()
