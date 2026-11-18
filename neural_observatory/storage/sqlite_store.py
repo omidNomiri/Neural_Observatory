@@ -183,9 +183,6 @@ class SQLiteStore(BaseStore):
             self._conn.execute("DELETE FROM observations")
         self._conn.commit()
 
-    def close(self) -> None:
-        self._conn.close()
-
     def __enter__(self) -> "SQLiteStore":
         return self
 

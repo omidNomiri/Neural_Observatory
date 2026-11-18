@@ -155,11 +155,17 @@ class Observatory:
         """
         Remove all hooks and stop monitoring.
 
-        Safe to call multiple times; idempotent.
+        Safe to call multiple times; idempotent. The store stays open so
+        report() can still run after stop(); use close() to release it.
         """
         self._hook_manager.detach()
         self._lifecycle.stop()
         logger.info("Observatory stopped")
+
+    def close(self) -> None:
+        """Stop monitoring and release the storage backend."""
+        self.stop()
+        self._store.close()
 
     def clear(self) -> None:
         """Clear all collected observations while keeping hooks active."""
@@ -419,7 +425,7 @@ class Observatory:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.stop()
+        self.close()
 
     # ==================================================================
     # Internal: Data collection
@@ -455,11 +461,8 @@ class Observatory:
                 for obs in obs_list:
                     self._store.put(collection, layer_name, obs)
 
+        # One batch commit per report keeps disk I/O bounded.
         self._store.commit()
-
-        # Batch commit all observations to disk at once (Huge performance boost!)
-        if hasattr(self._store, 'commit'):
-            self._store.commit()
 
     # ==================================================================
     # Internal: Utilities

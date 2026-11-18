@@ -46,6 +46,8 @@ class LifecycleManager:
             if self._state == MonitoringState.IDLE:
                 logger.warning("stop() called before watch() — nothing to stop.")
                 return
+            if self._state == MonitoringState.STOPPED:
+                return
             self._transition(MonitoringState.STOPPED)
 
     def begin_reporting(self) -> None:
