@@ -56,7 +56,7 @@ class ParameterCollector(BaseCollector):
         baseline_vals = self._baseline_values.get(layer_name)
         baseline_norm = self._baseline_norms.get(layer_name)
         if baseline_vals is None:
-            self._baseline_values[layer_name] = arr.astype(np.float32, copy=True)
+            self._baseline_values[layer_name] = arr.copy()
             self._baseline_norms[layer_name] = norm
             drift = 0.0
             norm_drift = 0.0
@@ -119,7 +119,8 @@ def _true_drift(current: np.ndarray, baseline: np.ndarray) -> float:
     base_norm = float(np.linalg.norm(baseline))
     if base_norm < 1e-12:
         return 0.0
-    diff_norm = float(np.linalg.norm(current.astype(baseline.dtype) - baseline))
+    # Let NumPy promote to the wider dtype so tiny float64 updates survive.
+    diff_norm = float(np.linalg.norm(current - baseline))
     return diff_norm / base_norm
 
 
