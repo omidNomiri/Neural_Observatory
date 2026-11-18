@@ -183,11 +183,14 @@ class Observatory:
         """
         Update the internal step and epoch counters.
 
-        Call this at the end of each training step or batch.
+        Call this *before* the forward pass of each training step, so the
+        hooks stamp observations with the step that produced them.
 
         Args:
             step: Global training step number.
             epoch: Current epoch number.
+            targets: Optional label tensor, forwarded to the HookManager for
+                the configured Neural Collapse layer.
 
         Note:
             This also forwards the step/epoch to the HookManager, whose
