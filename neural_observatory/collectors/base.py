@@ -1,6 +1,7 @@
 """
 Neural Observatory — Base Collector
 """
+
 from __future__ import annotations
 
 import threading
@@ -16,6 +17,7 @@ import numpy as np
 @dataclass
 class Observation:
     """An atomic, memory-safe snapshot captured by a hook."""
+
     layer_name: str
     step: int
     epoch: int
@@ -30,6 +32,7 @@ class Observation:
 @dataclass
 class LayerBuffer:
     """Fixed-size circular buffer for a single layer."""
+
     layer_name: str
     capacity: int
     _buffer: Deque[Observation] = field(init=False)

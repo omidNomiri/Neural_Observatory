@@ -4,16 +4,17 @@ These drive real training on every supported execution mode: CPU eager,
 inplace ops, inference (no grad), torch.compile, stats-only snapshots,
 and CUDA when a device is present.
 """
+
 import json
 
 import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.storage.sqlite_store import SQLiteStore
-from conftest import run_training_steps
 
 
 def test_full_training_loop_memory_backend(tiny_model, tmp_path):
@@ -30,13 +31,19 @@ def test_full_training_loop_memory_backend(tiny_model, tmp_path):
         assert obs.store.total_observations() == total_before
 
         layer = obs.activation_collector.layer_names[0]
-        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [0, 1, 2, 3, 4]
+        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [
+            0,
+            1,
+            2,
+            3,
+            4,
+        ]
         assert obs.gradient_collector.total_observations > 0
 
         param = obs.parameter_collector.layer_names[0]
-        assert obs.parameter_collector.get_drift(param) > 0, (
-            "SGD updated the weights but drift_from_init stayed zero."
-        )
+        assert (
+            obs.parameter_collector.get_drift(param) > 0
+        ), "SGD updated the weights but drift_from_init stayed zero."
 
         out = str(tmp_path / "report.json")
         obs.json_report(output=out)
@@ -91,9 +98,7 @@ def test_inference_without_gradients_collects_activations_only(tiny_model):
         assert obs.gradient_collector.total_observations == 0
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Dynamo does not know how to trace:UserWarning"
-)
+@pytest.mark.filterwarnings("ignore:Dynamo does not know how to trace:UserWarning")
 def test_torch_compile_model_is_monitored(tiny_model):
     compiled = torch.compile(tiny_model, backend="eager")
     cfg = ObservatoryConfig(max_observations=100)
@@ -103,7 +108,11 @@ def test_torch_compile_model_is_monitored(tiny_model):
         report = obs.report()
         assert report.results
         layer = obs.activation_collector.layer_names[0]
-        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [0, 1, 2]
+        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [
+            0,
+            1,
+            2,
+        ]
 
 
 def test_stats_only_mode_round_trip(tiny_model, tmp_path):

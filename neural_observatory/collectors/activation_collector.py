@@ -1,6 +1,7 @@
 """
 Neural Observatory — Activation Collector
 """
+
 from __future__ import annotations
 
 import logging
@@ -9,8 +10,8 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .base import BaseCollector, Dict, Observation
 from ..core.configuration import ObservatoryConfig
+from .base import BaseCollector, Dict, Observation
 
 logger = logging.getLogger(__name__)
 

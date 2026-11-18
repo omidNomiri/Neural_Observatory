@@ -5,41 +5,41 @@ Neural Observatory
 neural network observability, diagnostics, and analysis framework for PyTorch.
 """
 
-from .observatory import Observatory
+from .analysis import (
+    ActivationStatisticsAnalyzer,
+    AnalysisResult,
+    AnalysisStatus,
+    AnomalyDetectionAnalyzer,
+    BaseAnalyzer,
+    DeadNeuronAnalyzer,
+    EmbeddingDriftAnalyzer,
+    GradientHealthAnalyzer,
+    ParameterHealthAnalyzer,
+)
+from .collectors import (
+    ActivationCollector,
+    BaseCollector,
+    GradientCollector,
+    MetadataCollector,
+    Observation,
+    ParameterCollector,
+)
 from .core import (
-    ObservatoryConfig,
     Event,
     EventBus,
     EventType,
     LifecycleManager,
     MonitoringState,
+    ObservatoryConfig,
     Registry,
 )
-from .collectors import (
-    BaseCollector,
-    Observation,
-    ActivationCollector,
-    GradientCollector,
-    ParameterCollector,
-    MetadataCollector,
-)
-from .analysis import (
-    BaseAnalyzer,
-    AnalysisStatus,
-    AnalysisResult,
-    DeadNeuronAnalyzer,
-    GradientHealthAnalyzer,
-    EmbeddingDriftAnalyzer,
-    ActivationStatisticsAnalyzer,
-    AnomalyDetectionAnalyzer,
-    ParameterHealthAnalyzer,
-)
+from .observatory import Observatory
 from .reporting import (
     BaseReporter,
-    Report,
     ConsoleReporter,
-    JSONReporter,
     HTMLReporter,
+    JSONReporter,
+    Report,
 )
 
 __version__ = "0.5.2"

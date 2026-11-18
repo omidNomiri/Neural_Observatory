@@ -12,6 +12,23 @@ from typing import Any, Dict, List, Optional
 import torch
 import torch.nn as nn
 
+from .analysis import (
+    ActivationStatisticsAnalyzer,
+    AnomalyDetectionAnalyzer,
+    AttentionHealthAnalyzer,
+    BaseAnalyzer,
+    DeadNeuronAnalyzer,
+    EmbeddingDriftAnalyzer,
+    GradientHealthAnalyzer,
+    NeuralCollapseAnalyzer,
+    ParameterHealthAnalyzer,
+)
+from .collectors import (
+    ActivationCollector,
+    GradientCollector,
+    MetadataCollector,
+    ParameterCollector,
+)
 from .core import (
     EventBus,
     EventType,
@@ -21,35 +38,17 @@ from .core import (
     ObservatoryConfig,
     Registry,
 )
-from .collectors import (
-    ActivationCollector,
-    GradientCollector,
-    MetadataCollector,
-    ParameterCollector,
-)
-from .analysis import (
-    ActivationStatisticsAnalyzer,
-    AnomalyDetectionAnalyzer,
-    AttentionHealthAnalyzer,
-    BaseAnalyzer,
-    DeadNeuronAnalyzer,
-    EmbeddingDriftAnalyzer,
-    GradientHealthAnalyzer,
-    ParameterHealthAnalyzer,
-    NeuralCollapseAnalyzer,
-)
 from .hooks import HookManager
 from .reporting import (
+    BaseReporter,
     ConsoleReporter,
     HTMLReporter,
     JSONReporter,
     Report,
-    BaseReporter,
 )
-
 from .storage import MemoryStore
-from .storage.sqlite_store import SQLiteStore
 from .storage.base import BaseStore
+from .storage.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +85,15 @@ class Observatory:
         self._run_id = uuid.uuid4().hex
 
         # Collectors
-        self._activation_collector = ActivationCollector(config=self._config, run_id=self._run_id)
-        self._gradient_collector = GradientCollector(config=self._config, run_id=self._run_id)
-        self._parameter_collector = ParameterCollector(config=self._config, run_id=self._run_id)
+        self._activation_collector = ActivationCollector(
+            config=self._config, run_id=self._run_id
+        )
+        self._gradient_collector = GradientCollector(
+            config=self._config, run_id=self._run_id
+        )
+        self._parameter_collector = ParameterCollector(
+            config=self._config, run_id=self._run_id
+        )
         self._metadata_collector = MetadataCollector()
 
         # Hooks
@@ -115,7 +120,8 @@ class Observatory:
         self._register_default_reporters()
 
         logger.info(
-            "Observatory initialized for model with %d parameters", self._count_params())
+            "Observatory initialized for model with %d parameters", self._count_params()
+        )
 
     # ==================================================================
     # Public API: Lifecycle
@@ -137,7 +143,7 @@ class Observatory:
         try:
             self._metadata_collector.collect_model_metadata(self._model)
             self._hook_manager.attach()
-            
+
             # IMPORTANT: Capture initial parameter baseline right after watch()
             # so drift_from_init compares against step 0, not the final step.
             self._parameter_collector.collect_model_parameters(
@@ -149,8 +155,10 @@ class Observatory:
             self._lifecycle.stop()
             raise RuntimeError(f"Failed to start monitoring: {e}") from e
 
-        logger.info("Observatory watching model — %d layers instrumented", len(
-            self._hook_manager.hook_handles))
+        logger.info(
+            "Observatory watching model — %d layers instrumented",
+            len(self._hook_manager.hook_handles),
+        )
 
     def stop(self) -> None:
         """
@@ -184,7 +192,12 @@ class Observatory:
     # Public API: Training loop integration
     # ==================================================================
 
-    def step(self, step: Optional[int] = None, epoch: Optional[int] = None, targets: Optional[torch.Tensor] = None) -> None:
+    def step(
+        self,
+        step: Optional[int] = None,
+        epoch: Optional[int] = None,
+        targets: Optional[torch.Tensor] = None,
+    ) -> None:
         """
         Update the internal step and epoch counters.
 
@@ -206,17 +219,19 @@ class Observatory:
         """
 
         if not self._lifecycle.is_active:
-            logger.warning("Observatory.step() called while not active. Call obs.watch() first.")
+            logger.warning(
+                "Observatory.step() called while not active. Call obs.watch() first."
+            )
             return
 
         if step is not None:
             self._step = step
         else:
             self._step += 1
-            
+
         if epoch is not None:
             self._epoch = epoch
-            
+
         self._hook_manager.set_step(self._step)
         self._hook_manager.set_epoch(self._epoch)
         # Always forward targets, including None: labels belong to one step
@@ -241,7 +256,10 @@ class Observatory:
         self._lifecycle.require_reportable("report")
 
         # UX Guard: Warn if step was never updated
-        if self._step == 0 and (self._config.activation_sample_rate > 1 or self._config.gradient_sample_rate > 1):
+        if self._step == 0 and (
+            self._config.activation_sample_rate > 1
+            or self._config.gradient_sample_rate > 1
+        ):
             logger.warning(
                 "Observatory.step() was never called (step=0). "
                 "Sampling rates will not work properly. Please call obs.step() in your training loop."
@@ -262,8 +280,12 @@ class Observatory:
                     analyzer_results = analyzer.analyze(observations)
                     results.extend(analyzer_results)
                 except Exception as e:
-                    logger.error("Analyzer %s raised exception: %s",
-                                 analyzer.name, e, exc_info=True)
+                    logger.error(
+                        "Analyzer %s raised exception: %s",
+                        analyzer.name,
+                        e,
+                        exc_info=True,
+                    )
 
             report = Report(
                 timestamp=time.time(),
@@ -273,8 +295,11 @@ class Observatory:
             )
 
             self._last_report = report
-            logger.info("Report generated: %d results, %s status",
-                        len(results), report.overall_status().value)
+            logger.info(
+                "Report generated: %d results, %s status",
+                len(results),
+                report.overall_status().value,
+            )
             return report
 
         finally:
@@ -324,11 +349,15 @@ class Observatory:
     # Public API: Registry access
     # ==================================================================
 
-    def register_analyzer(self, analyzer: BaseAnalyzer, name: Optional[str] = None) -> None:
+    def register_analyzer(
+        self, analyzer: BaseAnalyzer, name: Optional[str] = None
+    ) -> None:
         """Register a custom analyzer."""
         self._registry.register_analyzer(analyzer, name)
 
-    def register_reporter(self, reporter: BaseReporter, name: Optional[str] = None) -> None:
+    def register_reporter(
+        self, reporter: BaseReporter, name: Optional[str] = None
+    ) -> None:
         """Register a custom reporter."""
         self._registry.register_reporter(reporter, name)
 
@@ -396,9 +425,9 @@ class Observatory:
 
     def _has_data(self) -> bool:
         return (
-            len(self._activation_collector.get_all()) > 0 or
-            len(self._gradient_collector.get_all()) > 0 or
-            len(self._parameter_collector.get_all()) > 0
+            len(self._activation_collector.get_all()) > 0
+            or len(self._gradient_collector.get_all()) > 0
+            or len(self._parameter_collector.get_all()) > 0
         )
 
     @staticmethod

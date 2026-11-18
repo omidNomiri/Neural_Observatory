@@ -1,6 +1,7 @@
 """
 Neural Observatory -- Parameter Collector
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,8 +12,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .base import BaseCollector, Observation
 from ..core.configuration import ObservatoryConfig
+from .base import BaseCollector, Observation
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
 """Every monitored module gets hooks, and gradient hooks follow the live step."""
+
 import pytest
 import torch
 import torch.nn as nn
@@ -48,9 +49,9 @@ def test_gradient_hooks_do_not_accumulate_on_reused_tensor():
     out.sum().backward()
 
     grads = obs.gradient_collector.get("root")
-    assert len(grads) == 1, (
-        f"Gradient hook accumulated on a reused tensor: {len(grads)} observations."
-    )
+    assert (
+        len(grads) == 1
+    ), f"Gradient hook accumulated on a reused tensor: {len(grads)} observations."
 
 
 def test_forward_hook_does_not_collect_after_detach(tiny_model):
@@ -83,9 +84,9 @@ def test_attach_failure_leaves_no_partial_hooks(tiny_model, monkeypatch):
 
     assert obs._hook_manager.hook_handles == {}
     _ = tiny_model(torch.randn(2, 8))
-    assert obs.activation_collector.total_observations == 0, (
-        "A failed watch() left live hooks on the model."
-    )
+    assert (
+        obs.activation_collector.total_observations == 0
+    ), "A failed watch() left live hooks on the model."
 
 
 def test_watch_failure_after_attach_detaches_hooks(tiny_model, monkeypatch):
@@ -121,9 +122,10 @@ def test_reused_tensor_gradients_follow_the_current_step():
 
     grads = obs.gradient_collector.get("root")
     assert len(grads) == 2, f"Expected one gradient per step, got {len(grads)}."
-    assert [g.step for g in grads] == [0, 1], (
-        "Gradient hook stayed bound to the step of the first forward."
-    )
+    assert [g.step for g in grads] == [
+        0,
+        1,
+    ], "Gradient hook stayed bound to the step of the first forward."
     obs.stop()
 
 
@@ -142,7 +144,7 @@ def test_stop_then_watch_recollects_gradients_cleanly():
     model(x).sum().backward()
 
     grads = obs.gradient_collector.get("root")
-    assert len(grads) == 2, (
-        f"Re-attach left stale gradient hooks behind: {len(grads)} observations."
-    )
+    assert (
+        len(grads) == 2
+    ), f"Re-attach left stale gradient hooks behind: {len(grads)} observations."
     assert [g.step for g in grads] == [0, 1]

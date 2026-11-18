@@ -1,6 +1,7 @@
 """
 Neural Observatory — Lifecycle Manager
 """
+
 from __future__ import annotations
 
 import logging
@@ -94,13 +95,8 @@ class LifecycleManager:
 
     def require_reportable(self, operation: str):
         with self._lock:
-            if self._state not in (
-                MonitoringState.ACTIVE,
-                MonitoringState.STOPPED
-            ):
-                raise LifecycleError(
-                    f"{operation} not allowed in state {self._state}"
-                )
+            if self._state not in (MonitoringState.ACTIVE, MonitoringState.STOPPED):
+                raise LifecycleError(f"{operation} not allowed in state {self._state}")
 
     def _transition(self, target: MonitoringState) -> None:
         pair = (self._state, target)

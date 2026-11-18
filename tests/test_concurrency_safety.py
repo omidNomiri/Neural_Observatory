@@ -1,9 +1,11 @@
 """Collectors and lifecycle calls must stay correct under concurrent use."""
+
 import sys
 import threading
 import time
 
 import torch
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.analysis.base import BaseAnalyzer
@@ -12,7 +14,6 @@ from neural_observatory.collectors.base import Observation
 from neural_observatory.core.events import Event, EventBus, EventType
 from neural_observatory.core.lifecycle import LifecycleManager
 from neural_observatory.storage.sqlite_store import SQLiteStore
-from conftest import run_training_steps
 
 
 def test_collector_reads_are_safe_under_concurrent_writes():
@@ -100,7 +101,9 @@ def test_event_bus_subscribe_is_locked():
         done.append(event)
 
     with bus._lock:
-        t = threading.Thread(target=bus.subscribe, args=(EventType.BATCH_FINISHED, handler))
+        t = threading.Thread(
+            target=bus.subscribe, args=(EventType.BATCH_FINISHED, handler)
+        )
         t.start()
         t.join(0.3)
         blocked = t.is_alive()

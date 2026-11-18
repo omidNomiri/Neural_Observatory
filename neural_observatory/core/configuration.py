@@ -1,11 +1,12 @@
 """
 Neural Observatory — Configuration
 """
+
 from __future__ import annotations
 
 import json
 import warnings
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -13,7 +14,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class ObservatoryConfig:
     """
-    Central config for the framework. 
+    Central config for the framework.
     """
 
     # ------------------------------------------------------------------
@@ -22,10 +23,10 @@ class ObservatoryConfig:
     # Sample activations every N forward passes.
     # 1 means collect on every forward pass.
     activation_sample_rate: int = 1
-    
+
     # Backward-pass sampling interval.
     gradient_sample_rate: int = 1
-    
+
     # How often to snapshot model weights.
     parameter_sample_rate: int = 10
 
@@ -34,11 +35,11 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Limit memory usage per layer.
     max_observations: int = 1000
-    
+
     # Deprecated no-op: NumPy snapshots always live in CPU memory, so GPU
     # tensors are moved to CPU regardless of this flag.
     store_on_cpu: bool = True
-    
+
     # Skip storing raw tensors and keep only summary statistics.
     stats_only_mode: bool = False
 
@@ -47,18 +48,31 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Layers to include. Empty means "all".
     include_layer_types: List[str] = field(default_factory=list)
-    
+
     # Ignore these layer types by default to save space.
-    exclude_layer_types: List[str] = field(default_factory=lambda: [
-        "BatchNorm1d", "BatchNorm2d", "BatchNorm3d",
-        "LayerNorm", "GroupNorm", "InstanceNorm1d", "InstanceNorm2d",
-        "Dropout", "Dropout2d", "Dropout3d", "AlphaDropout",
-        "Identity", "Sequential", "ModuleList", "ModuleDict",
-    ])
-    
+    exclude_layer_types: List[str] = field(
+        default_factory=lambda: [
+            "BatchNorm1d",
+            "BatchNorm2d",
+            "BatchNorm3d",
+            "LayerNorm",
+            "GroupNorm",
+            "InstanceNorm1d",
+            "InstanceNorm2d",
+            "Dropout",
+            "Dropout2d",
+            "Dropout3d",
+            "AlphaDropout",
+            "Identity",
+            "Sequential",
+            "ModuleList",
+            "ModuleDict",
+        ]
+    )
+
     # Only monitor layers with these names.
     include_layers: List[str] = field(default_factory=list)
-    
+
     # Skip specific layers by name.
     exclude_layers: List[str] = field(default_factory=list)
 
@@ -67,13 +81,13 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Values smaller than this are considered inactive.
     dead_neuron_threshold: float = 1e-6
-    
+
     # How often a neuron must appear dead before it's reported.
     dead_neuron_persistence: float = 0.95
-    
+
     # Warn if this fraction of a layer is dead.
     dead_neuron_warning_ratio: float = 0.20
-    
+
     # Critical alert threshold for dead neurons.
     dead_neuron_critical_ratio: float = 0.50
 
@@ -82,10 +96,10 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Gradients smaller than this mean learning has probably stalled.
     gradient_vanishing_threshold: float = 1e-7
-    
+
     # Gradients larger than this will likely destabilize training.
     gradient_exploding_threshold: float = 1e3
-    
+
     # Fraction of layers with issues before a global warning.
     gradient_warning_ratio: float = 0.3
 
@@ -94,7 +108,7 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Cutoff for considering an activation as zero.
     activation_sparsity_threshold: float = 1e-3
-    
+
     # Warn if a layer is mostly inactive.
     high_sparsity_warning: float = 0.8
 
@@ -109,7 +123,7 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Warn if attention entropy drops below this (model is collapsing to one token).
     attention_low_entropy_warning: float = 0.5
-    
+
     # Warn if attention entropy is too high (model is unfocused/uniform).
     attention_high_entropy_warning: float = 3.0
 
@@ -119,7 +133,7 @@ class ObservatoryConfig:
     # Name of the penultimate layer to monitor for Neural Collapse.
     # If None, this analyzer is disabled.
     neural_collapse_layer: Optional[str] = None
-    
+
     # Warn when within-class variance drops below this ratio (collapse is happening).
     neural_collapse_variance_threshold: float = 0.1
 
@@ -128,7 +142,7 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Warn if the average cosine similarity of embeddings drops below this.
     embedding_drift_warning: float = 0.7
-    
+
     # Critical alert threshold for embedding drift.
     embedding_drift_critical: float = 0.4
 
@@ -137,7 +151,7 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Large changes usually indicate unstable optimization.
     parameter_drift_threshold: float = 0.5
-    
+
     # High ratios mean the optimizer is taking steps that are too large.
     update_to_param_ratio_warning: float = 0.1
 
@@ -146,7 +160,7 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Where to keep data: 'memory' or 'sqlite'.
     storage_backend: str = "memory"
-    
+
     # Path for the sqlite db. If None, uses a temp file.
     storage_path: Optional[str] = None
 
@@ -155,13 +169,13 @@ class ObservatoryConfig:
     # ------------------------------------------------------------------
     # Filter out low-severity results. 0.0 shows everything.
     report_min_severity: float = 0.0
-    
+
     # Truncate long reports to keep them readable.
     report_max_layers: int = 100
-    
+
     # Include healthy layers in the final report.
     report_include_healthy: bool = True
-    
+
     # Add extra details like histograms to reports.
     verbose: bool = False
 
@@ -179,39 +193,60 @@ class ObservatoryConfig:
         _validate_positive("parameter_sample_rate", self.parameter_sample_rate)
         _validate_positive("max_observations", self.max_observations)
         _validate_non_negative("dead_neuron_threshold", self.dead_neuron_threshold)
-        _validate_range("dead_neuron_persistence", self.dead_neuron_persistence, 0.0, 1.0)
-        _validate_range("dead_neuron_warning_ratio", self.dead_neuron_warning_ratio, 0.0, 1.0)
-        _validate_range("dead_neuron_critical_ratio", self.dead_neuron_critical_ratio, 0.0, 1.0)
-        
+        _validate_range(
+            "dead_neuron_persistence", self.dead_neuron_persistence, 0.0, 1.0
+        )
+        _validate_range(
+            "dead_neuron_warning_ratio", self.dead_neuron_warning_ratio, 0.0, 1.0
+        )
+        _validate_range(
+            "dead_neuron_critical_ratio", self.dead_neuron_critical_ratio, 0.0, 1.0
+        )
+
         if self.dead_neuron_critical_ratio <= self.dead_neuron_warning_ratio:
             raise ValueError(
                 f"dead_neuron_critical_ratio ({self.dead_neuron_critical_ratio}) "
                 f"must be greater than dead_neuron_warning_ratio ({self.dead_neuron_warning_ratio})"
             )
-            
-        _validate_non_negative("gradient_vanishing_threshold", self.gradient_vanishing_threshold)
-        _validate_non_negative("gradient_exploding_threshold", self.gradient_exploding_threshold)
-        
+
+        _validate_non_negative(
+            "gradient_vanishing_threshold", self.gradient_vanishing_threshold
+        )
+        _validate_non_negative(
+            "gradient_exploding_threshold", self.gradient_exploding_threshold
+        )
+
         if self.gradient_exploding_threshold <= self.gradient_vanishing_threshold:
             raise ValueError(
                 f"gradient_exploding_threshold ({self.gradient_exploding_threshold}) "
                 f"must be greater than gradient_vanishing_threshold ({self.gradient_vanishing_threshold})"
             )
-            
+
         _validate_range("gradient_warning_ratio", self.gradient_warning_ratio, 0.0, 1.0)
-        _validate_non_negative("activation_sparsity_threshold", self.activation_sparsity_threshold)
+        _validate_non_negative(
+            "activation_sparsity_threshold", self.activation_sparsity_threshold
+        )
         _validate_range("high_sparsity_warning", self.high_sparsity_warning, 0.0, 1.0)
         _validate_positive("spike_std_multiplier", self.spike_std_multiplier)
-        _validate_non_negative("parameter_drift_threshold", self.parameter_drift_threshold)
-        _validate_non_negative("update_to_param_ratio_warning", self.update_to_param_ratio_warning)
+        _validate_non_negative(
+            "parameter_drift_threshold", self.parameter_drift_threshold
+        )
+        _validate_non_negative(
+            "update_to_param_ratio_warning", self.update_to_param_ratio_warning
+        )
         _validate_range("report_min_severity", self.report_min_severity, 0.0, 1.0)
         _validate_positive("report_max_layers", self.report_max_layers)
-        _validate_range("embedding_drift_warning", self.embedding_drift_warning, -1.0, 1.0)
-        _validate_range("embedding_drift_critical", self.embedding_drift_critical, -1.0, 1.0)
+        _validate_range(
+            "embedding_drift_warning", self.embedding_drift_warning, -1.0, 1.0
+        )
+        _validate_range(
+            "embedding_drift_critical", self.embedding_drift_critical, -1.0, 1.0
+        )
         if self.embedding_drift_critical >= self.embedding_drift_warning:
             raise ValueError(
                 f"embedding_drift_critical ({self.embedding_drift_critical}) "
-                f"must be less than embedding_drift_warning ({self.embedding_drift_warning})")
+                f"must be less than embedding_drift_warning ({self.embedding_drift_warning})"
+            )
 
         if self.storage_backend not in ("memory", "sqlite"):
             raise ValueError(
@@ -249,7 +284,9 @@ class ObservatoryConfig:
         return True
 
     def should_collect_activation(self, step: int) -> bool:
-        return self.activation_sample_rate <= 1 or step % self.activation_sample_rate == 0
+        return (
+            self.activation_sample_rate <= 1 or step % self.activation_sample_rate == 0
+        )
 
     def should_collect_gradient(self, step: int) -> bool:
         return self.gradient_sample_rate <= 1 or step % self.gradient_sample_rate == 0
@@ -263,9 +300,11 @@ def _validate_positive(name: str, value: float) -> None:
     if value < 1:
         raise ValueError(f"{name} must be >= 1, got {value}")
 
+
 def _validate_non_negative(name: str, value: float) -> None:
     if value < 0:
         raise ValueError(f"{name} must be >= 0, got {value}")
+
 
 def _validate_range(name: str, value: float, lo: float, hi: float) -> None:
     if not (lo <= value <= hi):

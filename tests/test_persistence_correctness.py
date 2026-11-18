@@ -1,14 +1,15 @@
 """Observation identity, dedup, buffer limits, and schema migration."""
+
 import sqlite3
 
 import numpy as np
 import pytest
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.collectors.base import LayerBuffer, Observation
 from neural_observatory.storage.memory_store import MemoryStore
 from neural_observatory.storage.sqlite_store import SQLiteStore
-from conftest import run_training_steps
 
 
 def _make_obs(step=1, epoch=0, seq=0, value=1.0, layer="layer_1"):
@@ -33,12 +34,14 @@ def test_collector_assigns_monotonic_sequence(tiny_model):
     all_seqs = []
     for layer in obs.activation_collector.layer_names:
         seqs = [o.seq for o in obs.activation_collector.get(layer)]
-        assert seqs == sorted(set(seqs)), f"seq not strictly increasing for {layer}: {seqs}"
+        assert seqs == sorted(
+            set(seqs)
+        ), f"seq not strictly increasing for {layer}: {seqs}"
         all_seqs.extend(seqs)
 
-    assert sorted(all_seqs) == list(range(len(all_seqs))), (
-        "Collector-wide sequence numbers must be unique and contiguous from 0."
-    )
+    assert sorted(all_seqs) == list(
+        range(len(all_seqs))
+    ), "Collector-wide sequence numbers must be unique and contiguous from 0."
 
 
 def test_sequence_does_not_restart_after_clear(tiny_model):
@@ -61,9 +64,9 @@ def test_sequence_does_not_restart_after_clear(tiny_model):
         for o in obs.activation_collector.get(layer)
     ]
     assert new_seqs, "No observations collected after clear()."
-    assert min(new_seqs) > max(old_seqs), (
-        "seq restarted after clear(); persisted history would collide with fresh data."
-    )
+    assert min(new_seqs) > max(
+        old_seqs
+    ), "seq restarted after clear(); persisted history would collide with fresh data."
 
 
 def test_sqlite_keeps_distinct_observations_with_same_step(tmp_path):
@@ -92,16 +95,23 @@ def test_memory_store_repeated_report_does_not_duplicate(tiny_model):
 
     obs.report()
     obs.report()
-    assert obs.store.total_observations() == first_total, (
-        "Repeated report() duplicated observations in MemoryStore."
-    )
+    assert (
+        obs.store.total_observations() == first_total
+    ), "Repeated report() duplicated observations in MemoryStore."
 
-    expected = sum(
-        len(obs.activation_collector.get(l)) for l in obs.activation_collector.layer_names
-    ) + sum(
-        len(obs.gradient_collector.get(l)) for l in obs.gradient_collector.layer_names
-    ) + sum(
-        len(obs.parameter_collector.get(l)) for l in obs.parameter_collector.layer_names
+    expected = (
+        sum(
+            len(obs.activation_collector.get(l))
+            for l in obs.activation_collector.layer_names
+        )
+        + sum(
+            len(obs.gradient_collector.get(l))
+            for l in obs.gradient_collector.layer_names
+        )
+        + sum(
+            len(obs.parameter_collector.get(l))
+            for l in obs.parameter_collector.layer_names
+        )
     )
     assert first_total == expected
 
@@ -194,9 +204,9 @@ def test_old_schema_database_is_migrated(tmp_path):
 
     store.put("activations", "layer_1", _make_obs(step=0, seq=1, value=9.0))
     store.commit()
-    assert len(store.get("activations", "layer_1")) == 3, (
-        "Migrated table does not accept distinct same-step observations."
-    )
+    assert (
+        len(store.get("activations", "layer_1")) == 3
+    ), "Migrated table does not accept distinct same-step observations."
 
 
 @pytest.mark.parametrize("backend", ["memory", "sqlite"])
@@ -243,11 +253,15 @@ def test_memory_store_dedup_survives_eviction():
     assert [o.seq for o in store.get("activations", "layer_1")] == [2, 3, 4]
 
     store.put("activations", "layer_1", _make_obs(step=4, seq=4))
-    assert [o.seq for o in store.get("activations", "layer_1")] == [2, 3, 4], (
-        "Re-put of a still-buffered observation must be ignored."
-    )
+    assert [o.seq for o in store.get("activations", "layer_1")] == [
+        2,
+        3,
+        4,
+    ], "Re-put of a still-buffered observation must be ignored."
 
     store.put("activations", "layer_1", _make_obs(step=0, seq=0))
-    assert [o.seq for o in store.get("activations", "layer_1")] == [3, 4, 0], (
-        "An evicted observation must be re-ingestible (bounded key set)."
-    )
+    assert [o.seq for o in store.get("activations", "layer_1")] == [
+        3,
+        4,
+        0,
+    ], "An evicted observation must be re-ingestible (bounded key set)."

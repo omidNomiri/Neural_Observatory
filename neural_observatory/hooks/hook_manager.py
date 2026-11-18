@@ -1,6 +1,7 @@
 """
 Neural Observatory — Hook Manager
 """
+
 from __future__ import annotations
 
 import logging
@@ -80,9 +81,7 @@ class HookManager:
                 # Module backward hooks wrap the output in an autograd Function, which
                 # crashes hard if the user has inplace=True ops downstream (e.g. ResNet).
                 # Tensor hooks just bind to the specific output tensor and are GC'd normally.
-                fwd_handle = module.register_forward_hook(
-                    self._make_forward_hook(name)
-                )
+                fwd_handle = module.register_forward_hook(self._make_forward_hook(name))
                 handles.append(fwd_handle)
 
                 self.hook_handles[name] = handles
@@ -96,7 +95,8 @@ class HookManager:
             logger.warning(
                 "Monitoring %d inplace layers (%s...). Tensor hooks handle this, "
                 "but custom inplace ops in forward() might still act weird.",
-                len(inplace_layers), ", ".join(inplace_layers[:3]),
+                len(inplace_layers),
+                ", ".join(inplace_layers[:3]),
             )
 
         self._active = True
@@ -142,7 +142,11 @@ class HookManager:
 
             # Special handling for nn.MultiheadAttention
             if isinstance(module, nn.MultiheadAttention):
-                if isinstance(output, tuple) and len(output) == 2 and output[1] is not None:
+                if (
+                    isinstance(output, tuple)
+                    and len(output) == 2
+                    and output[1] is not None
+                ):
                     tensor = output[0]
                     attn_weights = output[1]
                 else:
@@ -151,7 +155,7 @@ class HookManager:
                         logger.warning(
                             "Layer '%s' is an nn.MultiheadAttention but did not return attention weights. "
                             "Please set `need_weights=True` in your forward pass to allow AttentionHealthAnalyzer to work.",
-                            layer_name
+                            layer_name,
                         )
                         # Set a flag on the module so we don't spam the logs every step
                         module._obs_warned_attn = True
@@ -184,7 +188,10 @@ class HookManager:
                 # Attach targets if this is the configured Neural Collapse layer.
                 # tolist() keeps metadata JSON-serializable for SQLite and copies
                 # the values so later mutations of the user's tensor can't leak in.
-                if self._config.neural_collapse_layer == layer_name and self._targets is not None:
+                if (
+                    self._config.neural_collapse_layer == layer_name
+                    and self._targets is not None
+                ):
                     metadata["targets"] = self._targets.detach().cpu().tolist()
 
                 act_col.collect(
@@ -198,7 +205,7 @@ class HookManager:
                 # If we captured attention weights, store them with a metadata flag
                 if attn_weights is not None:
                     act_col.collect(
-                        layer_name=layer_name,  
+                        layer_name=layer_name,
                         data=attn_weights,
                         step=step,
                         epoch=epoch,
@@ -218,7 +225,10 @@ class HookManager:
                     def _forget(ref: Any, k: int = key) -> None:
                         self._grad_hook_handles.pop(k, None)
 
-                    self._grad_hook_handles[key] = (weakref.ref(tensor, _forget), handle)
+                    self._grad_hook_handles[key] = (
+                        weakref.ref(tensor, _forget),
+                        handle,
+                    )
 
         return _forward_hook
 

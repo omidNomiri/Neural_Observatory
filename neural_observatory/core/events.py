@@ -2,16 +2,18 @@
 Neural Observatory — Event System
 Lets different parts of the framework talk to each other without hard dependencies.
 """
+
 from __future__ import annotations
 
-import threading
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger(__name__)
+
 
 class EventType(Enum):
     TRAINING_STARTED = auto()
@@ -66,7 +68,10 @@ class EventBus:
             except Exception as exc:
                 logger.error(
                     "EventBus handler %s raised %s: %s",
-                    handler, type(exc).__name__, exc, exc_info=True
+                    handler,
+                    type(exc).__name__,
+                    exc,
+                    exc_info=True,
                 )
 
     def clear(self) -> None:

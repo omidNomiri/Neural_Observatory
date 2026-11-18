@@ -1,6 +1,7 @@
 """
 Neural Observatory — Gradient Collector
 """
+
 from __future__ import annotations
 
 import logging
@@ -9,8 +10,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .base import BaseCollector, Observation
 from ..core.configuration import ObservatoryConfig
+from .base import BaseCollector, Observation
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,15 @@
 """
 Neural Observatory — In-Memory Storage Backend
 """
+
 from __future__ import annotations
 
 import logging
 from collections import deque
 from typing import Any, Dict, List, Optional
 
-from .base import BaseStore
 from ..collectors.base import Observation
+from .base import BaseStore
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,7 @@ class MemoryStore(BaseStore):
     def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
         if collection not in self._data:
             return {}
-        return {
-            layer: list(buf)
-            for layer, buf in self._data[collection].items()
-        }
+        return {layer: list(buf) for layer, buf in self._data[collection].items()}
 
     def layer_names(self, collection: str) -> List[str]:
         return list(self._data.get(collection, {}).keys())
@@ -85,15 +83,10 @@ class MemoryStore(BaseStore):
     def stats(self) -> Dict[str, Any]:
         summary = {}
         for col, layers in self._data.items():
-            summary[col] = {
-                layer: len(buf)
-                for layer, buf in layers.items()
-            }
+            summary[col] = {layer: len(buf) for layer, buf in layers.items()}
         return summary
 
     def total_observations(self) -> int:
         return sum(
-            len(buf)
-            for layers in self._data.values()
-            for buf in layers.values()
+            len(buf) for layers in self._data.values() for buf in layers.values()
         )

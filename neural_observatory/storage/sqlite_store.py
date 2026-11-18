@@ -1,6 +1,7 @@
 """
 Neural Observatory — SQLite Storage Backend
 """
+
 from __future__ import annotations
 
 import io
@@ -14,8 +15,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .base import BaseStore
 from ..collectors.base import Observation
+from .base import BaseStore
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +77,7 @@ class SQLiteStore(BaseStore):
             # coarser old key could not represent. Legacy rows get seq 0 and
             # an empty run marker.
             seq_source = "seq" if "seq" in columns else "0"
-            self._conn.executescript(
-                f"""
+            self._conn.executescript(f"""
                 BEGIN;
                 CREATE TABLE observations_new (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,8 +104,7 @@ class SQLiteStore(BaseStore):
                 CREATE INDEX idx_col_layer ON observations (collection, layer_name);
                 CREATE INDEX idx_step      ON observations (step);
                 COMMIT;
-                """
-            )
+                """)
         self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
         self._conn.commit()
 
@@ -180,7 +179,7 @@ class SQLiteStore(BaseStore):
                 "FROM observations WHERE collection=? ORDER BY step, seq",
                 (collection,),
             ).fetchall()
-        
+
         result: Dict[str, List[Observation]] = {}
         for row in rows:
             obs = self._row_to_obs(row)
@@ -226,7 +225,17 @@ class SQLiteStore(BaseStore):
         return np.load(io.BytesIO(blob), allow_pickle=False)
 
     def _row_to_obs(self, row: tuple) -> Observation:
-        layer_name, step, epoch, seq, run_id, timestamp, stats_j, meta_j, values_blob = row
+        (
+            layer_name,
+            step,
+            epoch,
+            seq,
+            run_id,
+            timestamp,
+            stats_j,
+            meta_j,
+            values_blob,
+        ) = row
         return Observation(
             layer_name=layer_name,
             step=step,

@@ -1,4 +1,5 @@
 """Captured targets must be JSON-safe and still feed the Neural Collapse analyzer."""
+
 import json
 
 import numpy as np
@@ -32,7 +33,9 @@ def test_report_with_targets_and_sqlite_does_not_crash(tiny_model, tmp_path):
     assert stored[0].metadata["targets"] == [0, 1, 0, 1]
 
     nc_results = [r for r in report.results if r.analyzer_name == "neural_collapse"]
-    assert nc_results, "Neural Collapse analyzer produced nothing after targets round-trip."
+    assert (
+        nc_results
+    ), "Neural Collapse analyzer produced nothing after targets round-trip."
     assert "nc_variance_ratio" in nc_results[0].metrics
 
 
@@ -62,9 +65,10 @@ def test_targets_snapshot_is_independent_of_user_tensor(tiny_model):
     y.add_(100)
 
     metadata = obs.activation_collector.get("0")[0].metadata
-    assert metadata["targets"] == [0, 1], (
-        "Captured targets alias the user's live tensor storage."
-    )
+    assert metadata["targets"] == [
+        0,
+        1,
+    ], "Captured targets alias the user's live tensor storage."
 
 
 def test_targets_do_not_leak_into_later_steps(tiny_model):
@@ -80,9 +84,9 @@ def test_targets_do_not_leak_into_later_steps(tiny_model):
 
     acts = obs.activation_collector.get("0")
     assert acts[0].metadata["targets"] == [0, 1]
-    assert "targets" not in acts[1].metadata, (
-        "Labels from step 0 were attached to a step that provided none."
-    )
+    assert (
+        "targets" not in acts[1].metadata
+    ), "Labels from step 0 were attached to a step that provided none."
 
 
 def test_neural_collapse_analyzer_accepts_list_targets():

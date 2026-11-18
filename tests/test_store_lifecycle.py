@@ -1,11 +1,12 @@
 """Close and exit paths: pending writes are committed and nothing is orphaned."""
+
 import sqlite3
 
 import pytest
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.storage.sqlite_store import SQLiteStore
-from conftest import run_training_steps
 
 
 def test_sqlite_close_commits_pending_writes(tmp_path):
@@ -29,7 +30,9 @@ def test_sqlite_close_commits_pending_writes(tmp_path):
 
 def test_context_manager_closes_and_persists_sqlite(tiny_model, tmp_path):
     db_path = str(tmp_path / "obs.db")
-    cfg = ObservatoryConfig(storage_backend="sqlite", storage_path=db_path, max_observations=100)
+    cfg = ObservatoryConfig(
+        storage_backend="sqlite", storage_path=db_path, max_observations=100
+    )
 
     with Observatory(tiny_model, config=cfg) as obs:
         run_training_steps(obs, tiny_model, n_steps=3)
@@ -46,7 +49,9 @@ def test_context_manager_closes_and_persists_sqlite(tiny_model, tmp_path):
 
 def test_close_method_stops_and_closes(tiny_model, tmp_path):
     db_path = str(tmp_path / "obs.db")
-    cfg = ObservatoryConfig(storage_backend="sqlite", storage_path=db_path, max_observations=100)
+    cfg = ObservatoryConfig(
+        storage_backend="sqlite", storage_path=db_path, max_observations=100
+    )
     obs = Observatory(tiny_model, config=cfg)
     obs.watch()
     run_training_steps(obs, tiny_model, n_steps=2)
@@ -109,7 +114,9 @@ def test_report_commits_exactly_once(tiny_model, tmp_path):
             super().commit()
 
     db_path = str(tmp_path / "obs.db")
-    cfg = ObservatoryConfig(storage_backend="sqlite", storage_path=db_path, max_observations=100)
+    cfg = ObservatoryConfig(
+        storage_backend="sqlite", storage_path=db_path, max_observations=100
+    )
     obs = Observatory(tiny_model, config=cfg)
     obs._store.close()
     obs._store = CountingStore(db_path)
@@ -118,9 +125,9 @@ def test_report_commits_exactly_once(tiny_model, tmp_path):
     run_training_steps(obs, tiny_model, n_steps=2)
     obs.report()
 
-    assert obs._store.commit_calls == 1, (
-        f"report() committed {obs._store.commit_calls} times; expected exactly one batch commit."
-    )
+    assert (
+        obs._store.commit_calls == 1
+    ), f"report() committed {obs._store.commit_calls} times; expected exactly one batch commit."
 
 
 def test_memory_backend_context_exit_keeps_store_readable(tiny_model):

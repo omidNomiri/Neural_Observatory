@@ -1,6 +1,7 @@
 """
 Neural Observatory -- Neural Collapse Analyzer
 """
+
 from __future__ import annotations
 
 import logging
@@ -8,9 +9,9 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .base import BaseAnalyzer, AnalysisResult
-from ..core.configuration import ObservatoryConfig
 from ..collectors.base import Observation
+from ..core.configuration import ObservatoryConfig
+from .base import AnalysisResult, BaseAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,11 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
 
         # Handle Transformer/NLP outputs (batch, seq, dim)
         # In Transformers, token 0 is the [CLS] token representing the whole sample.
-        # We MUST use the CLS token, not mean(axis=1), because averaging destroys 
+        # We MUST use the CLS token, not mean(axis=1), because averaging destroys
         # the within-class variance we are trying to measure.
         if features.ndim == 3:
             features = features[:, 0, :]  # Extract [CLS] token
-        
+
         if features.ndim != 2 or targets.ndim != 1:
             return None
 
@@ -74,10 +75,10 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
             class_features = features[mask]
             if len(class_features) == 0:
                 continue
-            
+
             mean = np.mean(class_features, axis=0)
             class_means.append(mean)
-            
+
             # Variance of features within this class
             var = np.var(class_features, axis=0)
             within_class_var += np.sum(var) * len(class_features)
@@ -93,7 +94,7 @@ class NeuralCollapseAnalyzer(BaseAnalyzer):
         between_class_var = 0.0
         for mean in class_means:
             diff = mean - global_mean
-            between_class_var += np.sum(diff ** 2)
+            between_class_var += np.sum(diff**2)
         between_class_var /= len(class_means)
 
         # NC Metric: Lower ratio means higher collapse

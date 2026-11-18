@@ -1,11 +1,12 @@
 """Regression tests for BaseCollector._safe_numpy copy behavior."""
+
 import numpy as np
 import torch
 import torch.nn as nn
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.collectors.base import BaseCollector
-from conftest import run_training_steps
 
 
 def test_safe_numpy_returns_independent_copy_for_cpu_float32_tensor():
@@ -19,7 +20,8 @@ def test_safe_numpy_returns_independent_copy_for_cpu_float32_tensor():
     t.add_(100.0)
 
     np.testing.assert_array_equal(
-        arr, snapshot,
+        arr,
+        snapshot,
         err_msg="_safe_numpy returned an array that aliased the source storage.",
     )
 
@@ -44,7 +46,8 @@ def test_stored_activation_history_survives_inplace_relu(inplace_model):
         _ = inplace_model(torch.randn(4, 8))
 
     np.testing.assert_array_equal(
-        early_obs.values, snapshot,
+        early_obs.values,
+        snapshot,
         err_msg="Historical activation snapshot was corrupted by in-place reuse.",
     )
 
@@ -65,6 +68,7 @@ def test_stored_parameter_history_survives_optimizer_step(tiny_model):
     obs.parameter_collector.collect_model_parameters(tiny_model, step=99, epoch=0)
 
     np.testing.assert_array_equal(
-        first_obs.values, snapshot,
+        first_obs.values,
+        snapshot,
         err_msg="Parameter snapshot aliased live storage instead of copying.",
     )

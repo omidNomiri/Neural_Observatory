@@ -1,15 +1,16 @@
 """Regression tests for run identity across shared storage."""
+
 import sqlite3
 
 import numpy as np
 import torch
 import torch.nn as nn
+from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
 from neural_observatory.collectors.base import Observation
 from neural_observatory.storage.memory_store import MemoryStore
 from neural_observatory.storage.sqlite_store import SQLiteStore
-from conftest import run_training_steps
 
 
 def _make_obs(step=0, epoch=0, seq=0, run_id="", value=1.0, layer="layer_1"):
@@ -67,9 +68,9 @@ def test_two_runs_sharing_one_sqlite_database_are_both_kept(tmp_path):
     assert obs_a.run_id != obs_b.run_id
 
     stored = obs_b.store.get("activations", "0")
-    assert len(stored) == 4, (
-        f"Second run was dropped as a duplicate of the first: {len(stored)} rows."
-    )
+    assert (
+        len(stored) == 4
+    ), f"Second run was dropped as a duplicate of the first: {len(stored)} rows."
     by_run = {}
     for o in stored:
         by_run.setdefault(o.run_id, []).append(o.step)
@@ -83,9 +84,9 @@ def test_memory_store_dedup_is_per_run():
     store = MemoryStore(max_observations=10)
     store.put("activations", "layer_1", _make_obs(run_id="run-a"))
     store.put("activations", "layer_1", _make_obs(run_id="run-b"))
-    assert len(store.get("activations", "layer_1")) == 2, (
-        "Same step/seq from a different run must not be treated as a duplicate."
-    )
+    assert (
+        len(store.get("activations", "layer_1")) == 2
+    ), "Same step/seq from a different run must not be treated as a duplicate."
 
     store.put("activations", "layer_1", _make_obs(run_id="run-a"))
     assert len(store.get("activations", "layer_1")) == 2
@@ -129,9 +130,11 @@ def test_v1_schema_gains_run_identity(tmp_path):
     assert len(legacy) == 1
     assert legacy[0].run_id == "", "Legacy rows should keep an empty run marker."
 
-    store.put("activations", "layer_1", _make_obs(step=0, seq=0, run_id="new-run", value=9.0))
-    store.commit()
-    assert len(store.get("activations", "layer_1")) == 2, (
-        "A new run must coexist with legacy rows at the same step/seq."
+    store.put(
+        "activations", "layer_1", _make_obs(step=0, seq=0, run_id="new-run", value=9.0)
     )
+    store.commit()
+    assert (
+        len(store.get("activations", "layer_1")) == 2
+    ), "A new run must coexist with legacy rows at the same step/seq."
     store.close()
