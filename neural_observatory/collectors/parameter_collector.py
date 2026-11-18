@@ -43,12 +43,12 @@ class ParameterCollector(BaseCollector):
         if not self._config.should_collect_parameters(step):
             return
 
-        arr = self._safe_numpy(data, move_to_cpu=self._store_on_cpu)
+        arr = self._safe_numpy(data)
         if arr is None:
             return
 
         stats = self._compute_basic_stats(arr)
-        norm = stats["norm"]
+        norm = stats.get("norm", 0.0)
 
         baseline_vals = self._baseline_values.get(layer_name)
         baseline_norm = self._baseline_norms.get(layer_name)

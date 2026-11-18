@@ -39,7 +39,7 @@ class GradientCollector(BaseCollector):
         if not self._config.should_collect_gradient(step):
             return
 
-        arr = self._safe_numpy(data, move_to_cpu=self._store_on_cpu)
+        arr = self._safe_numpy(data)
         if arr is None:
             logger.debug("GradientCollector: could not convert %s to numpy", type(data))
             return

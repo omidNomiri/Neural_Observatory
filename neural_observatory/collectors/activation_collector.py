@@ -40,7 +40,7 @@ class ActivationCollector(BaseCollector):
         if not self._config.should_collect_activation(step):
             return
 
-        arr = self._safe_numpy(data, move_to_cpu=self._store_on_cpu)
+        arr = self._safe_numpy(data)
         if arr is None:
             logger.debug("Couldn't convert activation %s to numpy", type(data))
             return

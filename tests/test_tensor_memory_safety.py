@@ -11,7 +11,7 @@ from conftest import run_training_steps
 def test_safe_numpy_returns_independent_copy_for_cpu_float32_tensor():
     """Mutating source tensor in place must not change the returned array."""
     t = torch.ones(4, 4, dtype=torch.float32)
-    arr = BaseCollector._safe_numpy(t, move_to_cpu=True)
+    arr = BaseCollector._safe_numpy(t)
 
     assert arr is not None
     snapshot = arr.copy()

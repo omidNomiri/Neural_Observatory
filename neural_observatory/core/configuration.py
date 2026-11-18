@@ -4,6 +4,7 @@ Neural Observatory — Configuration
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -34,7 +35,8 @@ class ObservatoryConfig:
     # Limit memory usage per layer.
     max_observations: int = 1000
     
-    # Store observations on CPU instead of keeping GPU memory occupied.
+    # Deprecated no-op: NumPy snapshots always live in CPU memory, so GPU
+    # tensors are moved to CPU regardless of this flag.
     store_on_cpu: bool = True
     
     # Skip storing raw tensors and keep only summary statistics.
@@ -165,6 +167,13 @@ class ObservatoryConfig:
 
     def __post_init__(self) -> None:
         """Validate config right after initialization."""
+        if not self.store_on_cpu:
+            warnings.warn(
+                "store_on_cpu is deprecated and ignored: snapshots are always "
+                "stored in CPU memory. Remove the flag from your config.",
+                UserWarning,
+                stacklevel=2,
+            )
         _validate_positive("activation_sample_rate", self.activation_sample_rate)
         _validate_positive("gradient_sample_rate", self.gradient_sample_rate)
         _validate_positive("parameter_sample_rate", self.parameter_sample_rate)

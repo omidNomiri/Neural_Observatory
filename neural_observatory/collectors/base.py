@@ -115,25 +115,24 @@ class BaseCollector(ABC):
             self._total += 1
 
     @staticmethod
-    def _safe_numpy(tensor: Any, *, move_to_cpu: bool = True) -> Optional[np.ndarray]:
+    def _safe_numpy(tensor: Any) -> Optional[np.ndarray]:
         """
-        Convert tensor to a safe NumPy snapshot.
+        Convert tensor to an independent CPU NumPy snapshot, preserving dtype.
 
-        NumPy arrays must live in CPU memory, so CUDA/MPS tensors are always
-        copied to CPU before conversion. The returned array is also copied
-        to break any aliasing with the model's live storage.
+        Snapshots always live in CPU memory. bfloat16 has no NumPy equivalent
+        and is widened to float32; complex tensors are unsupported (None).
+        The copy breaks any aliasing with the model's live storage.
         """
         try:
             import torch
 
             if isinstance(tensor, torch.Tensor):
+                if tensor.is_complex():
+                    return None
                 detached = tensor.detach()
-
-                if detached.device.type != "cpu":
-                    detached = detached.cpu()
-
-                arr = detached.float().clone().numpy()
-                return np.array(arr, copy=True)
+                if detached.dtype == torch.bfloat16:
+                    detached = detached.float()
+                return detached.to(device="cpu", copy=True).numpy()
 
         except Exception:
             return None
