@@ -194,7 +194,8 @@ class SQLiteStore(BaseStore):
         if run_id is not None:
             q += "AND run_id=? "
             params = (*params, run_id)
-        q += "ORDER BY step, epoch, seq, run_id"
+        # layer_name breaks the last ties so mapping key order is deterministic.
+        q += "ORDER BY step, epoch, seq, run_id, layer_name"
         with self._lock:
             rows = self._conn.execute(q, params).fetchall()
 

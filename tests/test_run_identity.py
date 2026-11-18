@@ -248,3 +248,24 @@ def test_memory_store_limit_applies_after_run_filter():
     got = store.get("activations", "layer_1", 1, run_id="run-a")
     assert len(got) == 1
     assert got[0].run_id == "run-a" and got[0].step == 1
+
+
+def test_collection_key_order_is_deterministic(tmp_path):
+    """Layers tied on step/epoch/seq/run_id must yield a stable key order."""
+    store = SQLiteStore(db_path=str(tmp_path / "layers.db"))
+    # Insert layer_z first so insertion order differs from name order.
+    store.put(
+        "activations",
+        "layer_z",
+        _make_obs(step=0, seq=0, run_id="run-a", value=2.0, layer="layer_z"),
+    )
+    store.put(
+        "activations",
+        "layer_a",
+        _make_obs(step=0, seq=0, run_id="run-a", value=1.0, layer="layer_a"),
+    )
+    store.commit()
+
+    coll = store.get_collection("activations")
+    assert list(coll) == ["layer_a", "layer_z"], "Key order is unstable."
+    store.close()
