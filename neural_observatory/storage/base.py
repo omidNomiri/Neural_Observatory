@@ -24,13 +24,19 @@ class BaseStore(ABC):
         collection: str,
         layer_name: str,
         limit: Optional[int] = None,
+        run_id: Optional[str] = None,
     ) -> List[Observation]:
-        """Retrieve observations for a specific layer (first ``limit`` if given)."""
+        """Retrieve observations for a layer, optionally filtered by ``run_id``.
+
+        If ``limit`` is given, return the first ``limit`` matches.
+        """
         pass
 
     @abstractmethod
-    def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
-        """Retrieve all observations for a specific collection type."""
+    def get_collection(
+        self, collection: str, run_id: Optional[str] = None
+    ) -> Dict[str, List[Observation]]:
+        """Retrieve a collection's observations, optionally filtered by ``run_id``."""
         pass
 
     @abstractmethod

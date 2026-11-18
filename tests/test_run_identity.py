@@ -223,3 +223,28 @@ def test_epoch_breaks_ties_within_one_run(tmp_path):
     coll = store.get_collection("activations")
     assert [o.epoch for o in coll["layer_1"]] == [0, 1]
     store.close()
+
+
+def test_memory_store_filters_by_run_id():
+    store = MemoryStore(max_observations=10)
+    store.put("activations", "layer_1", _make_obs(run_id="run-a", value=1.0))
+    store.put("activations", "layer_1", _make_obs(run_id="run-b", value=2.0))
+
+    only_a = store.get("activations", "layer_1", run_id="run-a")
+    assert [o.run_id for o in only_a] == ["run-a"]
+    assert float(only_a[0].values[0]) == 1.0
+
+    coll = store.get_collection("activations", run_id="run-b")
+    assert [o.run_id for o in coll["layer_1"]] == ["run-b"]
+    assert store.get_collection("activations", run_id="run-z") == {}
+
+
+def test_memory_store_limit_applies_after_run_filter():
+    store = MemoryStore(max_observations=10)
+    store.put("activations", "layer_1", _make_obs(run_id="run-b", value=2.0))
+    store.put("activations", "layer_1", _make_obs(step=1, run_id="run-a", value=1.0))
+
+    # limit stays the third positional argument; filtering happens first.
+    got = store.get("activations", "layer_1", 1, run_id="run-a")
+    assert len(got) == 1
+    assert got[0].run_id == "run-a" and got[0].step == 1

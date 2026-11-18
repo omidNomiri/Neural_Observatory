@@ -54,17 +54,30 @@ class MemoryStore(BaseStore):
         collection: str,
         layer_name: str,
         limit: Optional[int] = None,
+        run_id: Optional[str] = None,
     ) -> List[Observation]:
         try:
             items = list(self._data[collection][layer_name])
         except KeyError:
             return []
+        if run_id is not None:
+            items = [o for o in items if o.run_id == run_id]
         return items[:limit] if limit is not None else items
 
-    def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
+    def get_collection(
+        self, collection: str, run_id: Optional[str] = None
+    ) -> Dict[str, List[Observation]]:
         if collection not in self._data:
             return {}
-        return {layer: list(buf) for layer, buf in self._data[collection].items()}
+        if run_id is None:
+            return {layer: list(buf) for layer, buf in self._data[collection].items()}
+        # Match SQLiteStore: layers with no matching rows are omitted.
+        result: Dict[str, List[Observation]] = {}
+        for layer, buf in self._data[collection].items():
+            items = [o for o in buf if o.run_id == run_id]
+            if items:
+                result[layer] = items
+        return result
 
     def layer_names(self, collection: str) -> List[str]:
         return list(self._data.get(collection, {}).keys())
