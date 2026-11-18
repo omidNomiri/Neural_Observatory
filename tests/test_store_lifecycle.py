@@ -131,3 +131,39 @@ def test_memory_backend_context_exit_keeps_store_readable(tiny_model):
         layer = obs.activation_collector.layer_names[0]
 
     assert len(obs.store.get("activations", layer)) > 0
+
+
+def test_temporary_database_is_removed_on_close():
+    store = SQLiteStore()
+    path = store._path
+    assert path.exists()
+    store.close()
+    assert not path.exists(), "close() left an orphaned temporary database behind."
+
+
+def test_explicit_database_survives_close(tmp_path):
+    db_path = tmp_path / "obs.db"
+    store = SQLiteStore(db_path=str(db_path))
+    store.close()
+    assert db_path.exists(), "close() deleted a user-owned database file."
+
+
+def test_store_close_is_idempotent(tmp_path):
+    store = SQLiteStore(db_path=str(tmp_path / "obs.db"))
+    store.close()
+    store.close()
+
+
+def test_observatory_close_is_idempotent_and_removes_temp_database(tiny_model):
+    cfg = ObservatoryConfig(storage_backend="sqlite", max_observations=50)
+    obs = Observatory(tiny_model, config=cfg)
+    obs.watch()
+    run_training_steps(obs, tiny_model, n_steps=1)
+    obs.report()
+    path = obs.store._path
+
+    obs.close()
+    obs.close()
+
+    assert not obs.is_active
+    assert not path.exists(), "Observatory.close() orphaned its temporary database."

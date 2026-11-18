@@ -43,13 +43,15 @@ CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
 
 class SQLiteStore(BaseStore):
     def __init__(self, db_path: Optional[str] = None) -> None:
+        self._temp_path: Optional[Path] = None
         if db_path is None:
-            # mktemp is deprecated and insecure, using NamedTemporaryFile instead
             tmp = tempfile.NamedTemporaryFile(suffix=".observatory.db", delete=False)
             tmp.close()
             db_path = tmp.name
+            self._temp_path = Path(db_path)
 
         self._path = Path(db_path)
+        self._closed = False
         # check_same_thread=False lets any thread use the store, so every
         # operation must be serialized by us instead of by sqlite3.
         self._lock = threading.RLock()
@@ -142,10 +144,15 @@ class SQLiteStore(BaseStore):
             self._conn.commit()
 
     def close(self) -> None:
-        # Ensure data is written before closing
         with self._lock:
+            if self._closed:
+                return
             self._conn.commit()
             self._conn.close()
+            self._closed = True
+            # Only databases we created ourselves are ours to delete.
+            if self._temp_path is not None:
+                self._temp_path.unlink(missing_ok=True)
 
     def get(
         self,
