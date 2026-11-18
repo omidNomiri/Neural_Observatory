@@ -110,9 +110,9 @@ class ParameterCollector(BaseCollector):
         return [o.stats.get("norm", 0.0) for o in self.get(layer_name)]
 
     def clear(self) -> None:
+        """Empty observation buffers; init baselines are kept so
+        drift_from_init stays measured against initialization."""
         super().clear()
-        self._baseline_values.clear()
-        self._baseline_norms.clear()
         self._last_snapshot = None
 
 

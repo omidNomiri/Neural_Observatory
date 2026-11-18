@@ -57,3 +57,22 @@ def test_float64_baseline_keeps_tiny_updates():
     assert (
         drift is not None and drift > 0
     ), "Baseline downcast erased a real float64 parameter update."
+
+
+def test_clear_keeps_the_init_baseline():
+    """drift_from_init stays measured against initialization after clear()."""
+    pc = ParameterCollector(config=ObservatoryConfig(parameter_sample_rate=1))
+    weight = torch.ones(4, dtype=torch.float32)
+
+    pc.collect("w", weight, step=0)
+    weight += 0.5
+    pc.collect("w", weight, step=1)
+    drift_before = pc.get_drift("w")
+
+    pc.clear()
+    pc.collect("w", weight, step=2)
+
+    assert len(pc.get("w")) == 1, "clear() did not empty the observation buffer."
+    assert pc.get_drift("w") == drift_before, (
+        "clear() re-baselined; drift_from_init must stay relative to initialization."
+    )
