@@ -18,8 +18,13 @@ class BaseStore(ABC):
         pass
 
     @abstractmethod
-    def get(self, collection: str, layer_name: str) -> List[Observation]:
-        """Retrieve observations for a specific layer."""
+    def get(
+        self,
+        collection: str,
+        layer_name: str,
+        limit: Optional[int] = None,
+    ) -> List[Observation]:
+        """Retrieve observations for a specific layer (first ``limit`` if given)."""
         pass
 
     @abstractmethod

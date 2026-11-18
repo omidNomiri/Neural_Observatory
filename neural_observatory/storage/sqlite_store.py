@@ -18,6 +18,8 @@ from ..collectors.base import Observation
 
 logger = logging.getLogger(__name__)
 
+_SCHEMA_VERSION = 1
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,11 +27,12 @@ CREATE TABLE IF NOT EXISTS observations (
     layer_name  TEXT    NOT NULL,
     step        INTEGER NOT NULL,
     epoch       INTEGER NOT NULL,
+    seq         INTEGER NOT NULL DEFAULT 0,
     timestamp   REAL    NOT NULL,
     stats       TEXT    NOT NULL,
     metadata    TEXT    NOT NULL,
     values_blob BLOB,
-    UNIQUE (collection, layer_name, step, epoch)
+    UNIQUE (collection, layer_name, step, epoch, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_col_layer ON observations (collection, layer_name);
 CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
@@ -43,12 +46,59 @@ class SQLiteStore(BaseStore):
             tmp = tempfile.NamedTemporaryFile(suffix=".observatory.db", delete=False)
             tmp.close()
             db_path = tmp.name
-            
+
         self._path = Path(db_path)
         self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        self._migrate_schema()
         logger.info("SQLiteStore opened at %s", self._path)
+
+    def _migrate_schema(self) -> None:
+        version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+        if version >= _SCHEMA_VERSION:
+            return
+
+        columns = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(observations)").fetchall()
+        }
+        if not columns:
+            self._conn.executescript(_SCHEMA)
+        elif "seq" not in columns:
+            # Pre-0.5.2 table: identity was (collection, layer, step, epoch),
+            # which silently dropped distinct same-step observations. Rebuild
+            # with the seq column; INSERT OR IGNORE collapses any legacy
+            # duplicates that the old coarse key could not represent.
+            self._conn.executescript(
+                """
+                BEGIN;
+                CREATE TABLE observations_new (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection  TEXT    NOT NULL,
+                    layer_name  TEXT    NOT NULL,
+                    step        INTEGER NOT NULL,
+                    epoch       INTEGER NOT NULL,
+                    seq         INTEGER NOT NULL DEFAULT 0,
+                    timestamp   REAL    NOT NULL,
+                    stats       TEXT    NOT NULL,
+                    metadata    TEXT    NOT NULL,
+                    values_blob BLOB,
+                    UNIQUE (collection, layer_name, step, epoch, seq)
+                );
+                INSERT OR IGNORE INTO observations_new
+                    (collection, layer_name, step, epoch, seq,
+                     timestamp, stats, metadata, values_blob)
+                SELECT collection, layer_name, step, epoch, 0,
+                       timestamp, stats, metadata, values_blob
+                FROM observations;
+                DROP TABLE observations;
+                ALTER TABLE observations_new RENAME TO observations;
+                CREATE INDEX idx_col_layer ON observations (collection, layer_name);
+                CREATE INDEX idx_step      ON observations (step);
+                COMMIT;
+                """
+            )
+        self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+        self._conn.commit()
 
     def put(
         self,
@@ -60,15 +110,16 @@ class SQLiteStore(BaseStore):
         self._conn.execute(
         """
         INSERT OR IGNORE INTO observations
-            (collection, layer_name, step, epoch, timestamp,
+            (collection, layer_name, step, epoch, seq, timestamp,
             stats, metadata, values_blob)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             collection,
             layer_name,
             observation.step,
             observation.epoch,
+            observation.seq,
             observation.timestamp,
             json.dumps(observation.stats),
             json.dumps(observation.metadata),
@@ -92,11 +143,11 @@ class SQLiteStore(BaseStore):
         limit: Optional[int] = None,
     ) -> List[Observation]:
         q = (
-            "SELECT layer_name, step, epoch, timestamp, stats, metadata, values_blob "
-            "FROM observations WHERE collection=? AND layer_name=? ORDER BY step"
+            "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
+            "FROM observations WHERE collection=? AND layer_name=? ORDER BY step, seq"
         )
         params: tuple = (collection, layer_name)
-        if limit:
+        if limit is not None:
             q += " LIMIT ?"
             params = (*params, limit)
             
@@ -105,8 +156,8 @@ class SQLiteStore(BaseStore):
 
     def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
         rows = self._conn.execute(
-            "SELECT layer_name, step, epoch, timestamp, stats, metadata, values_blob "
-            "FROM observations WHERE collection=? ORDER BY step",
+            "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
+            "FROM observations WHERE collection=? ORDER BY step, seq",
             (collection,),
         ).fetchall()
         
@@ -156,11 +207,12 @@ class SQLiteStore(BaseStore):
         return np.load(io.BytesIO(blob), allow_pickle=False)
 
     def _row_to_obs(self, row: tuple) -> Observation:
-        layer_name, step, epoch, timestamp, stats_j, meta_j, values_blob = row
+        layer_name, step, epoch, seq, timestamp, stats_j, meta_j, values_blob = row
         return Observation(
             layer_name=layer_name,
             step=step,
             epoch=epoch,
+            seq=seq,
             timestamp=timestamp,
             stats=json.loads(stats_j),
             metadata=json.loads(meta_j),

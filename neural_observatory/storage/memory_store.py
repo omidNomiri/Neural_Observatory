@@ -17,6 +17,7 @@ class MemoryStore(BaseStore):
     def __init__(self, max_observations: int = 1000) -> None:
         self._max = max_observations
         self._data: Dict[str, Dict[str, deque]] = {}
+        self._keys: Dict[str, Dict[str, set]] = {}
 
     def put(
         self,
@@ -25,9 +26,23 @@ class MemoryStore(BaseStore):
         observation: Observation,
     ) -> None:
         col = self._data.setdefault(collection, {})
+        keys_col = self._keys.setdefault(collection, {})
         if layer_name not in col:
             col[layer_name] = deque(maxlen=self._max)
-        col[layer_name].append(observation)
+            keys_col[layer_name] = set()
+        buf = col[layer_name]
+        keys = keys_col[layer_name]
+
+        key = (observation.step, observation.epoch, observation.seq)
+        if key in keys:
+            return
+        # The deque silently evicts the oldest item once full; drop its key
+        # too so the key set stays bounded and evicted data can return.
+        if buf.maxlen and len(buf) == buf.maxlen:
+            oldest = buf[0]
+            keys.discard((oldest.step, oldest.epoch, oldest.seq))
+        buf.append(observation)
+        keys.add(key)
 
     def commit(self) -> None:
         """Memory store doesn't need to commit to disk, but provided for interface consistency."""
@@ -37,11 +52,13 @@ class MemoryStore(BaseStore):
         self,
         collection: str,
         layer_name: str,
+        limit: Optional[int] = None,
     ) -> List[Observation]:
         try:
-            return list(self._data[collection][layer_name])
+            items = list(self._data[collection][layer_name])
         except KeyError:
             return []
+        return items[:limit] if limit is not None else items
 
     def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
         if collection not in self._data:
@@ -60,8 +77,10 @@ class MemoryStore(BaseStore):
     def clear(self, collection: Optional[str] = None) -> None:
         if collection:
             self._data.pop(collection, None)
+            self._keys.pop(collection, None)
         else:
             self._data.clear()
+            self._keys.clear()
 
     def stats(self) -> Dict[str, Any]:
         summary = {}

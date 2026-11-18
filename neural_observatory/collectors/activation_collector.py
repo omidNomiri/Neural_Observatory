@@ -63,9 +63,7 @@ class ActivationCollector(BaseCollector):
             metadata=metadata,
         )
 
-        buf = self._get_or_create_buffer(layer_name)
-        buf.add(obs)
-        self._total += 1
+        self._record(layer_name, obs)
 
     def get_sparsity(self, layer_name: str) -> Optional[float]:
         obs = self.get(layer_name)

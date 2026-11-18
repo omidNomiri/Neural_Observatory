@@ -60,9 +60,7 @@ class GradientCollector(BaseCollector):
             metadata={"shape": list(arr.shape), "dtype": str(arr.dtype)},
         )
 
-        buf = self._get_or_create_buffer(layer_name)
-        buf.add(obs)
-        self._total += 1
+        self._record(layer_name, obs)
 
     def get_norms(self, layer_name: str) -> List[float]:
         return [o.stats.get("l2_norm", 0.0) for o in self.get(layer_name)]

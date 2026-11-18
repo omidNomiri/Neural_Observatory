@@ -23,6 +23,7 @@ class Observation:
     values: Optional[np.ndarray] = None
     stats: Dict[str, float] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    seq: int = 0
 
 
 @dataclass
@@ -42,6 +43,8 @@ class LayerBuffer:
         return list(self._buffer)
 
     def latest(self, n: int = 1) -> List[Observation]:
+        if n <= 0:
+            return []
         items = list(self._buffer)
         return items[-n:] if n < len(items) else items
 
@@ -61,6 +64,7 @@ class BaseCollector(ABC):
         self._buffers: Dict[str, LayerBuffer] = {}
         self._lock = threading.RLock()
         self._total = 0
+        self._seq = 0
 
     @abstractmethod
     def collect(self, layer_name: str, data: Any, step: int, epoch: int = 0) -> None:
@@ -99,6 +103,16 @@ class BaseCollector(ABC):
                     capacity=self._max_observations,
                 )
             return self._buffers[layer_name]
+
+    def _record(self, layer_name: str, obs: Observation) -> None:
+        # seq is assigned under the lock and never reset by clear(), so an
+        # observation's identity stays unique across buffer resets and
+        # repeated persistence of the same buffers is idempotent.
+        with self._lock:
+            obs.seq = self._seq
+            self._seq += 1
+            self._get_or_create_buffer(layer_name).add(obs)
+            self._total += 1
 
     @staticmethod
     def _safe_numpy(tensor: Any, *, move_to_cpu: bool = True) -> Optional[np.ndarray]:
