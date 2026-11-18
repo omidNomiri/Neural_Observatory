@@ -71,19 +71,23 @@ class BaseCollector(ABC):
         pass
 
     def get(self, layer_name: str) -> List[Observation]:
-        buf = self._buffers.get(layer_name)
-        return buf.all() if buf else []
+        with self._lock:
+            buf = self._buffers.get(layer_name)
+            return buf.all() if buf else []
 
     def get_all(self) -> Dict[str, List[Observation]]:
-        return {name: buf.all() for name, buf in self._buffers.items()}
+        with self._lock:
+            return {name: buf.all() for name, buf in self._buffers.items()}
 
     def latest(self, layer_name: str, n: int = 1) -> List[Observation]:
-        buf = self._buffers.get(layer_name)
-        return buf.latest(n) if buf else []
+        with self._lock:
+            buf = self._buffers.get(layer_name)
+            return buf.latest(n) if buf else []
 
     @property
     def layer_names(self) -> List[str]:
-        return list(self._buffers.keys())
+        with self._lock:
+            return list(self._buffers.keys())
 
     @property
     def total_observations(self) -> int:

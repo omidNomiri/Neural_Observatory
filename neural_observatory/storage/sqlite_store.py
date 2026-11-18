@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -48,6 +49,9 @@ class SQLiteStore(BaseStore):
             db_path = tmp.name
 
         self._path = Path(db_path)
+        # check_same_thread=False lets any thread use the store, so every
+        # operation must be serialized by us instead of by sqlite3.
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
         self._migrate_schema()
         logger.info("SQLiteStore opened at %s", self._path)
@@ -107,34 +111,37 @@ class SQLiteStore(BaseStore):
         observation: Observation,
     ) -> None:
         values_blob = self._encode_array(observation.values)
-        self._conn.execute(
-        """
-        INSERT OR IGNORE INTO observations
-            (collection, layer_name, step, epoch, seq, timestamp,
-            stats, metadata, values_blob)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            collection,
-            layer_name,
-            observation.step,
-            observation.epoch,
-            observation.seq,
-            observation.timestamp,
-            json.dumps(observation.stats),
-            json.dumps(observation.metadata),
-            values_blob,
-        ),
-    )
+        with self._lock:
+            self._conn.execute(
+            """
+            INSERT OR IGNORE INTO observations
+                (collection, layer_name, step, epoch, seq, timestamp,
+                stats, metadata, values_blob)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                collection,
+                layer_name,
+                observation.step,
+                observation.epoch,
+                observation.seq,
+                observation.timestamp,
+                json.dumps(observation.stats),
+                json.dumps(observation.metadata),
+                values_blob,
+            ),
+        )
 
     def commit(self) -> None:
         """Commit all pending transactions to disk."""
-        self._conn.commit()
+        with self._lock:
+            self._conn.commit()
 
     def close(self) -> None:
         # Ensure data is written before closing
-        self._conn.commit()
-        self._conn.close()
+        with self._lock:
+            self._conn.commit()
+            self._conn.close()
 
     def get(
         self,
@@ -150,16 +157,18 @@ class SQLiteStore(BaseStore):
         if limit is not None:
             q += " LIMIT ?"
             params = (*params, limit)
-            
-        rows = self._conn.execute(q, params).fetchall()
+
+        with self._lock:
+            rows = self._conn.execute(q, params).fetchall()
         return [self._row_to_obs(r) for r in rows]
 
     def get_collection(self, collection: str) -> Dict[str, List[Observation]]:
-        rows = self._conn.execute(
-            "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
-            "FROM observations WHERE collection=? ORDER BY step, seq",
-            (collection,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT layer_name, step, epoch, seq, timestamp, stats, metadata, values_blob "
+                "FROM observations WHERE collection=? ORDER BY step, seq",
+                (collection,),
+            ).fetchall()
         
         result: Dict[str, List[Observation]] = {}
         for row in rows:
@@ -168,20 +177,22 @@ class SQLiteStore(BaseStore):
         return result
 
     def layer_names(self, collection: str) -> List[str]:
-        rows = self._conn.execute(
-            "SELECT DISTINCT layer_name FROM observations WHERE collection=?",
-            (collection,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT DISTINCT layer_name FROM observations WHERE collection=?",
+                (collection,),
+            ).fetchall()
         return [r[0] for r in rows]
 
     def clear(self, collection: Optional[str] = None) -> None:
-        if collection:
-            self._conn.execute(
-                "DELETE FROM observations WHERE collection=?", (collection,)
-            )
-        else:
-            self._conn.execute("DELETE FROM observations")
-        self._conn.commit()
+        with self._lock:
+            if collection:
+                self._conn.execute(
+                    "DELETE FROM observations WHERE collection=?", (collection,)
+                )
+            else:
+                self._conn.execute("DELETE FROM observations")
+            self._conn.commit()
 
     def __enter__(self) -> "SQLiteStore":
         return self

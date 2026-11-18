@@ -47,12 +47,14 @@ class EventBus:
         self._lock = threading.RLock()
 
     def subscribe(self, event_type: EventType, handler: EventHandler) -> None:
-        self._subscribers.setdefault(event_type, []).append(handler)
+        with self._lock:
+            self._subscribers.setdefault(event_type, []).append(handler)
 
     def unsubscribe(self, event_type: EventType, handler: EventHandler) -> None:
-        handlers = self._subscribers.get(event_type, [])
-        if handler in handlers:
-            handlers.remove(handler)
+        with self._lock:
+            handlers = self._subscribers.get(event_type, [])
+            if handler in handlers:
+                handlers.remove(handler)
 
     def publish(self, event: Event) -> None:
         with self._lock:
@@ -68,4 +70,5 @@ class EventBus:
                 )
 
     def clear(self) -> None:
-        self._subscribers.clear()
+        with self._lock:
+            self._subscribers.clear()

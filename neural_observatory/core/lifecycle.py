@@ -56,6 +56,10 @@ class LifecycleManager:
 
     def end_reporting(self) -> None:
         with self._lock:
+            if self._state == MonitoringState.STOPPED:
+                # stop() during a report already settled the final state;
+                # raising here would mask the report's outcome in finally.
+                return
             if self._state != MonitoringState.REPORTING:
                 raise LifecycleError(
                     f"end_reporting() called but state is {self._state.name}, "
