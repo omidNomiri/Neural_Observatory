@@ -123,7 +123,7 @@ Observatory.step() now safely guards against being called before watch() or afte
 - `Observatory.step()` docstring now matches the documented convention: call it *before* the forward pass.
 - `Observatory.clear()` docstring states the contract: in-memory buffers are emptied, persisted history is kept, and sequence numbers never restart.
 - Gradient timing contract documented: gradients are stamped with the step active at backward time; finish each step's backward before calling `step()` again, and call `step()` per micro-batch when accumulating gradients. Delayed backward across steps is explicitly unsupported.
-- Storage: `get()`/`get_collection()` accept an optional `run_id` filter on both backends; SQLite orders by `(step, epoch, seq, run_id)` so retrieval is deterministic across the full observation identity.
+- Storage: both backends accept an optional `run_id` filter in `get()`/`get_collection()` and treat negative limits as unbounded; SQLite orders by `(step, epoch, seq, run_id)`, with `layer_name` as the final tie-breaker in `get_collection()` for deterministic mapping key order.
 - README compatibility matrix no longer claims DDP support for SQLite/HTML Report; DDP is unsupported across the board.
 - README roadmap replaced with the phased version plan (0.5.x stabilization → Phase 1 model intelligence → Phase 2 neuron observatory → Phase 3 neuron intelligence).
 - All modules touched since 0.5.1 formatted with Black and isort (profile: black).
@@ -131,4 +131,4 @@ Observatory.step() now safely guards against being called before watch() or afte
 ### Added
 
 - End-to-end training regression tests: full training loops on both storage backends, inplace ops, `no_grad` inference, `torch.compile`, stats-only mode, and round-trip persistence equality.
-- Regression suites for run identity, persistence identity/migration, store lifecycle, targets serialization, hook correctness, snapshot fidelity, concurrency safety, and parameter snapshot guards (126 tests passing, 1 CUDA-only skip).
+- Regression suites for run identity, persistence identity/migration, store lifecycle, targets serialization, hook correctness, snapshot fidelity, concurrency safety, and parameter snapshot guards (129 tests passing, 1 CUDA-only skip).
