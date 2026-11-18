@@ -35,9 +35,11 @@ class HookManager:
         self._active: bool = False
         self._targets: Optional[torch.Tensor] = None
         self.hook_handles: Dict[str, List[Any]] = {}
-        # id(tensor) -> (weakref, RemovableHandle). Tensors can't go into a
-        # WeakSet (weakref equality falls back to tensor ==, which is
+        # id(tensor) -> (weakref, RemovableHandle, layer names). Tensors can't
+        # go into a WeakSet (weakref equality falls back to tensor ==, which is
         # elementwise), so identity is tracked by id with a death callback.
+        # Several monitored layers can return the same tensor object; one hook
+        # serves them all and credits each associated layer.
         self._grad_hook_handles: Dict[int, Any] = {}
 
     def attach(self, layer_filter: Optional[List[str]] = None) -> None:
@@ -110,7 +112,7 @@ class HookManager:
                 h.remove()
                 count += 1
         self.hook_handles.clear()
-        for ref, handle in list(self._grad_hook_handles.values()):
+        for ref, handle, _layers in list(self._grad_hook_handles.values()):
             if ref() is not None:
                 handle.remove()
         self._grad_hook_handles.clear()
@@ -217,10 +219,13 @@ class HookManager:
 
             # One gradient hook per tensor: repeated forwards can return the
             # same tensor object, and re-registering would multiply observations.
+            # Every layer that produced the tensor joins its association list.
             if tensor.requires_grad:
                 key = id(tensor)
-                if key not in self._grad_hook_handles:
-                    handle = tensor.register_hook(self._make_grad_hook(layer_name))
+                entry = self._grad_hook_handles.get(key)
+                if entry is None:
+                    layers = [layer_name]
+                    handle = tensor.register_hook(self._make_grad_hook(layers))
 
                     def _forget(ref: Any, k: int = key) -> None:
                         self._grad_hook_handles.pop(k, None)
@@ -228,28 +233,34 @@ class HookManager:
                     self._grad_hook_handles[key] = (
                         weakref.ref(tensor, _forget),
                         handle,
+                        layers,
                     )
+                elif layer_name not in entry[2]:
+                    entry[2].append(layer_name)
 
         return _forward_hook
 
-    def _make_grad_hook(self, layer_name: str) -> Callable:
+    def _make_grad_hook(self, layers: List[str]) -> Callable:
         grad_col = self._grad_col
 
         def _grad_hook(grad: torch.Tensor) -> None:
             if not self._active:
                 return
-            try:
-                # Read the counters at backward time, not at registration:
-                # a tensor reused across steps keeps its single hook, and the
-                # gradient belongs to whichever step is running now.
-                grad_col.collect(
-                    layer_name=layer_name,
-                    data=grad,
-                    step=self._step,
-                    epoch=self._epoch,
-                )
-            except Exception as exc:
-                logger.debug("Gradient hook error on %s: %s", layer_name, exc)
+            # Read the counters at backward time, not at registration:
+            # a tensor reused across steps keeps its single hook, and the
+            # gradient belongs to whichever step is running now.
+            step = self._step
+            epoch = self._epoch
+            for layer_name in list(layers):
+                try:
+                    grad_col.collect(
+                        layer_name=layer_name,
+                        data=grad,
+                        step=step,
+                        epoch=epoch,
+                    )
+                except Exception as exc:
+                    logger.debug("Gradient hook error on %s: %s", layer_name, exc)
 
         return _grad_hook
 

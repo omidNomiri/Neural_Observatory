@@ -148,3 +148,23 @@ def test_stop_then_watch_recollects_gradients_cleanly():
         len(grads) == 2
     ), f"Re-attach left stale gradient hooks behind: {len(grads)} observations."
     assert [g.step for g in grads] == [0, 1]
+
+
+def test_shared_tensor_reaches_every_monitored_layer():
+    """Two Identity layers pass one tensor through; both must see its gradient."""
+    model = nn.Sequential(nn.Identity(), nn.Identity())
+    cfg = ObservatoryConfig(max_observations=50, exclude_layer_types=[])
+    obs = Observatory(model, config=cfg)
+    obs.watch()
+
+    x = torch.randn(4, requires_grad=True)
+    obs.step(step=0, epoch=0)
+    for _ in range(3):
+        out = model(x)
+    out.sum().backward()
+
+    assert len(obs.gradient_collector.get("0")) == 1
+    assert len(obs.gradient_collector.get("1")) == 1, (
+        "Only the first layer attached to the shared tensor received a gradient."
+    )
+    obs.stop()
