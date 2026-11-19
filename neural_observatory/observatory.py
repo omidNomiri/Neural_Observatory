@@ -31,7 +31,6 @@ from .collectors import (
 )
 from .core import (
     EventBus,
-    EventType,
     LifecycleError,
     LifecycleManager,
     MonitoringState,
@@ -39,6 +38,7 @@ from .core import (
     Registry,
 )
 from .hooks import HookManager
+from .hooks._compiler import unwrap_model
 from .reporting import (
     BaseReporter,
     ConsoleReporter,
@@ -63,17 +63,7 @@ class Observatory:
         model: nn.Module,
         config: Optional[ObservatoryConfig] = None,
     ) -> None:
-        # Handle torch.compile() models.
-        # Compiled models wrap the original nn.Module in an OptimizedModule.
-        # We must hook the original module to avoid graph breaks and missed data.
-        if hasattr(model, "_orig_mod"):
-            logger.info(
-                "torch.compile detected: Observatory will monitor the underlying original module. "
-                "Note: Forward hooks may cause graph breaks in compiled models."
-            )
-            self._model = model._orig_mod
-        else:
-            self._model = model
+        self._model = unwrap_model(model)
 
         self._config = config or ObservatoryConfig()
         self._lifecycle = LifecycleManager()
@@ -120,7 +110,8 @@ class Observatory:
         self._register_default_reporters()
 
         logger.info(
-            "Observatory initialized for model with %d parameters", self._count_params()
+            "Observatory initialized for model with %d parameters",
+            self._count_params(),
         )
 
     # ==================================================================
@@ -150,9 +141,10 @@ class Observatory:
                 self._model, step=0, epoch=0
             )
         except Exception as e:
-            logger.error("Initialization failed during watch(): %s", e, exc_info=True)
-            self._hook_manager.detach()
-            self._lifecycle.stop()
+            logger.error(
+                "Initialization failed during watch(): %s", e, exc_info=True
+            )
+            self.stop()
             raise RuntimeError(f"Failed to start monitoring: {e}") from e
 
         logger.info(
@@ -167,14 +159,18 @@ class Observatory:
         Safe to call multiple times; idempotent. The store stays open so
         report() can still run after stop(); use close() to release it.
         """
-        self._hook_manager.detach()
-        self._lifecycle.stop()
+        try:
+            self._hook_manager.detach()
+        finally:
+            self._lifecycle.stop()
         logger.info("Observatory stopped")
 
     def close(self) -> None:
         """Stop monitoring and release the storage backend."""
-        self.stop()
-        self._store.close()
+        try:
+            self.stop()
+        finally:
+            self._store.close()
 
     def clear(self) -> None:
         """Empty the in-memory collector buffers; hooks stay attached.
@@ -229,7 +225,8 @@ class Observatory:
 
         if not self._lifecycle.is_active:
             logger.warning(
-                "Observatory.step() called while not active. Call obs.watch() first."
+                "Observatory.step() called while not active. "
+                "Call obs.watch() first."
             )
             return
 
@@ -271,7 +268,8 @@ class Observatory:
         ):
             logger.warning(
                 "Observatory.step() was never called (step=0). "
-                "Sampling rates will not work properly. Please call obs.step() in your training loop."
+                "Sampling rates will not work properly. "
+                "Please call obs.step() in your training loop."
             )
 
         if not self._has_data():
@@ -344,7 +342,7 @@ class Observatory:
         Render the latest report as HTML.
 
         Args:
-            output: File path to write HTML to (defaults to observatory_report.html).
+            output: HTML file path (defaults to observatory_report.html).
         """
         if self._last_report is None:
             report = self.report()
@@ -420,7 +418,7 @@ class Observatory:
 
     @property
     def store(self):
-        """Access the configured storage backend (MemoryStore or SQLiteStore)."""
+        """Access the configured MemoryStore or SQLiteStore backend."""
         return self._store
 
     @property
@@ -474,7 +472,11 @@ class Observatory:
         logger.debug("Registered %d default reporters", len(reporters))
 
     def __enter__(self) -> "Observatory":
-        self.watch()
+        try:
+            self.watch()
+        except Exception:
+            self.close()
+            raise
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -508,7 +510,7 @@ class Observatory:
         }
 
     def _persist_observations(self, observations: Dict[str, Any]) -> None:
-        """Mirror the current observation snapshot into the configured store."""
+        """Mirror the current snapshot into the configured store."""
         for collection, by_layer in observations.items():
             for layer_name, obs_list in by_layer.items():
                 for obs in obs_list:

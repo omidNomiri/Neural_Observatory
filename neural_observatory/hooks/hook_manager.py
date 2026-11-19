@@ -5,6 +5,7 @@ Neural Observatory — Hook Manager
 from __future__ import annotations
 
 import logging
+import warnings
 import weakref
 from typing import Any, Callable, Dict, List, Optional
 
@@ -14,6 +15,7 @@ import torch.nn as nn
 from ..collectors.activation_collector import ActivationCollector
 from ..collectors.gradient_collector import GradientCollector
 from ..core.configuration import ObservatoryConfig
+from ._compiler import eager_hook, supports_monitored_compile, unwrap_model
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,19 @@ class HookManager:
 
     def attach(self, layer_filter: Optional[List[str]] = None) -> None:
         self.detach()
+        self._model = unwrap_model(self._model)
+        if (
+            callable(getattr(torch, "compile", None))
+            and not supports_monitored_compile()
+        ):
+            warnings.warn(
+                "torch.compile with monitoring is unsupported on "
+                "PyTorch < 2.12. "
+                "Keep this model in eager mode; compiling it after attaching "
+                "hooks may silently fall back to eager execution.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         cfg = self._config
         attached = 0
@@ -79,11 +94,11 @@ class HookManager:
 
                 handles: List[Any] = []
 
-                # We use tensor-level hooks instead of module.register_full_backward_hook.
-                # Module backward hooks wrap the output in an autograd Function, which
-                # crashes hard if the user has inplace=True ops downstream (e.g. ResNet).
-                # Tensor hooks just bind to the specific output tensor and are GC'd normally.
-                fwd_handle = module.register_forward_hook(self._make_forward_hook(name))
+                # Tensor hooks avoid module backward-hook wrappers, which
+                # conflict with downstream inplace ops, and are GC'd normally.
+                fwd_handle = module.register_forward_hook(
+                    self._make_forward_hook(name)
+                )
                 handles.append(fwd_handle)
 
                 self.hook_handles[name] = handles
@@ -95,7 +110,8 @@ class HookManager:
 
         if inplace_layers:
             logger.warning(
-                "Monitoring %d inplace layers (%s...). Tensor hooks handle this, "
+                "Monitoring %d inplace layers (%s...). "
+                "Tensor hooks handle this, "
                 "but custom inplace ops in forward() might still act weird.",
                 len(inplace_layers),
                 ", ".join(inplace_layers[:3]),
@@ -106,18 +122,33 @@ class HookManager:
 
     def detach(self) -> None:
         self._active = False
-        count = 0
-        for _, handles in self.hook_handles.items():
-            for h in handles:
-                h.remove()
-                count += 1
-        self.hook_handles.clear()
-        for ref, handle, _layers in list(self._grad_hook_handles.values()):
-            if ref() is not None:
-                handle.remove()
-        self._grad_hook_handles.clear()
-        if count:
-            logger.info("Removed %d hooks.", count)
+        error = None
+        for name, handles in list(self.hook_handles.items()):
+            remaining = []
+            for handle in handles:
+                try:
+                    handle.remove()
+                except Exception as exc:
+                    remaining.append(handle)
+                    error = error or exc
+            if remaining:
+                self.hook_handles[name] = remaining
+            else:
+                del self.hook_handles[name]
+        for key, (ref, handle, _layers) in list(
+            self._grad_hook_handles.items()
+        ):
+            try:
+                if ref() is not None:
+                    handle.remove()
+            except Exception as exc:
+                error = error or exc
+            else:
+                self._grad_hook_handles.pop(key, None)
+        if error is not None:
+            raise RuntimeError(
+                f"Failed to remove monitoring hooks: {error}"
+            ) from error
 
     def set_step(self, step: int) -> None:
         self._step = step
@@ -130,7 +161,6 @@ class HookManager:
 
     def _make_forward_hook(self, layer_name: str) -> Callable:
         act_col = self._act_col
-        grad_col = self._grad_col
 
         def _forward_hook(module: nn.Module, inp: Any, output: Any) -> None:
             if not self._active:
@@ -155,12 +185,14 @@ class HookManager:
                     # The user set need_weights=False, so weights are missing!
                     if not getattr(module, "_obs_warned_attn", False):
                         logger.warning(
-                            "Layer '%s' is an nn.MultiheadAttention but did not return attention weights. "
-                            "Please set `need_weights=True` in your forward pass to allow AttentionHealthAnalyzer to work.",
+                            "Layer '%s' is an nn.MultiheadAttention but did "
+                            "not return attention weights. "
+                            "Please set `need_weights=True` in your forward "
+                            "pass to allow AttentionHealthAnalyzer to work.",
                             layer_name,
                         )
-                        # Set a flag on the module so we don't spam the logs every step
-                        module._obs_warned_attn = True
+                        # Warn once per module to avoid log spam.
+                        setattr(module, "_obs_warned_attn", True)
 
                     # Fallback to using the output tensor directly
                     if isinstance(output, tuple) and len(output) > 0:
@@ -185,11 +217,13 @@ class HookManager:
                 return
 
             try:
-                metadata = {"shape": list(tensor.shape), "dtype": str(tensor.dtype)}
+                metadata = {
+                    "shape": list(tensor.shape),
+                    "dtype": str(tensor.dtype),
+                }
 
-                # Attach targets if this is the configured Neural Collapse layer.
-                # tolist() keeps metadata JSON-serializable for SQLite and copies
-                # the values so later mutations of the user's tensor can't leak in.
+                # Neural Collapse labels must be JSON-safe for SQLite and
+                # copied so later mutations of the user's tensor cannot leak.
                 if (
                     self._config.neural_collapse_layer == layer_name
                     and self._targets is not None
@@ -204,7 +238,7 @@ class HookManager:
                     metadata=metadata,
                 )
 
-                # If we captured attention weights, store them with a metadata flag
+                # Flag attention weights so analyzers can distinguish them.
                 if attn_weights is not None:
                     act_col.collect(
                         layer_name=layer_name,
@@ -215,10 +249,9 @@ class HookManager:
                     )
 
             except Exception as exc:
-                logger.debug("Forward hook error on %s: %s", layer_name, exc)
+                logger.warning("Forward hook error on %s: %s", layer_name, exc)
 
-            # One gradient hook per tensor: repeated forwards can return the
-            # same tensor object, and re-registering would multiply observations.
+            # One hook per tensor avoids duplicate gradients on tensor reuse.
             # Every layer that produced the tensor joins its association list.
             if tensor.requires_grad:
                 key = id(tensor)
@@ -238,7 +271,7 @@ class HookManager:
                 elif layer_name not in entry[2]:
                     entry[2].append(layer_name)
 
-        return _forward_hook
+        return eager_hook(_forward_hook)
 
     def _make_grad_hook(self, layers: List[str]) -> Callable:
         grad_col = self._grad_col
@@ -260,7 +293,9 @@ class HookManager:
                         epoch=epoch,
                     )
                 except Exception as exc:
-                    logger.debug("Gradient hook error on %s: %s", layer_name, exc)
+                    logger.warning(
+                        "Gradient hook error on %s: %s", layer_name, exc
+                    )
 
         return _grad_hook
 
@@ -269,4 +304,6 @@ class HookManager:
         return sorted(self.hook_handles.keys())
 
     def __repr__(self) -> str:
-        return f"HookManager(layers={len(self.hook_handles)}, step={self._step})"
+        return (
+            f"HookManager(layers={len(self.hook_handles)}, step={self._step})"
+        )

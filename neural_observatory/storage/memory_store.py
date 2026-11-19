@@ -34,19 +34,26 @@ class MemoryStore(BaseStore):
         buf = col[layer_name]
         keys = keys_col[layer_name]
 
-        key = (observation.step, observation.epoch, observation.seq, observation.run_id)
+        key = (
+            observation.step,
+            observation.epoch,
+            observation.seq,
+            observation.run_id,
+        )
         if key in keys:
             return
         # The deque silently evicts the oldest item once full; drop its key
         # too so the key set stays bounded and evicted data can return.
         if buf.maxlen and len(buf) == buf.maxlen:
             oldest = buf[0]
-            keys.discard((oldest.step, oldest.epoch, oldest.seq, oldest.run_id))
+            keys.discard(
+                (oldest.step, oldest.epoch, oldest.seq, oldest.run_id)
+            )
         buf.append(observation)
         keys.add(key)
 
     def commit(self) -> None:
-        """Memory store doesn't need to commit to disk, but provided for interface consistency."""
+        """No-op for compatibility with stores that commit to disk."""
         pass
 
     def get(
@@ -73,7 +80,10 @@ class MemoryStore(BaseStore):
         if collection not in self._data:
             return {}
         if run_id is None:
-            return {layer: list(buf) for layer, buf in self._data[collection].items()}
+            return {
+                layer: list(buf)
+                for layer, buf in self._data[collection].items()
+            }
         # Match SQLiteStore: layers with no matching rows are omitted.
         result: Dict[str, List[Observation]] = {}
         for layer, buf in self._data[collection].items():
@@ -89,7 +99,7 @@ class MemoryStore(BaseStore):
         return list(self._data.keys())
 
     def clear(self, collection: Optional[str] = None) -> None:
-        if collection:
+        if collection is not None:
             self._data.pop(collection, None)
             self._keys.pop(collection, None)
         else:
@@ -104,5 +114,7 @@ class MemoryStore(BaseStore):
 
     def total_observations(self) -> int:
         return sum(
-            len(buf) for layers in self._data.values() for buf in layers.values()
+            len(buf)
+            for layers in self._data.values()
+            for buf in layers.values()
         )

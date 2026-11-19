@@ -26,21 +26,39 @@ A scientific instrumentation framework that allows researchers and engineers to 
 
 ## Compatibility Matrix
 
-| Feature | CPU | CUDA | MPS | DDP |
-| ----------- | --- | ---- | --- | --- |
-| Activations | ✅ | ✅ | ✅ | ❌ |
-| Gradients | ✅ | ✅ | ✅ | ❌ |
-| SQLite | ✅ | ✅ | ✅ | ❌ |
-| HTML Report | ✅ | ✅ | ✅ | ❌ |
+| Execution mode | Release validation |
+| --- | --- |
+| CPU eager training/inference | Tested locally with PyTorch 2.8.0 and 2.12.1 |
+| CUDA | Test available; not executed locally (no device) |
+| MPS | Not tested |
+| DDP / FSDP | Unsupported |
 
 ## Version Compatibility
 
-| PyTorch | Status |
-| ------- | ------------ |
-| 2.1 | ✅ |
-| 2.2 | ✅ |
-| 2.3 | ✅ |
-| Nightly | Experimental |
+Python 3.9–3.12 is the supported validation matrix; package metadata requires
+Python >=3.9. The eager dependency floor is PyTorch 1.9, but this release does
+not claim that every historical Python/PyTorch combination has been tested.
+
+### Compilation contract
+
+- Monitoring `torch.compile` models requires PyTorch >=2.12 and
+  `fullgraph=False` (the default). Earlier versions are conservatively
+  unsupported: PyTorch 2.8 can silently execute the whole monitored model
+  eagerly after a hook graph break. Passing an older compiled wrapper to
+  `Observatory` or `HookManager` raises `RuntimeError` before installing hooks.
+- Eager monitoring remains available on older PyTorch. Attaching hooks emits
+  a warning that compiling the model later is unsupported; compilation of an
+  already-watched model cannot be intercepted reliably.
+- Hooks run eagerly while model operations can run in separate graphs. The
+  library does not compile individual layers, replace forwards, choose a
+  backend, or alter the optimizer. Graph breaks and overhead are expected;
+  no speedup or arbitrary-backend compatibility is promised.
+- CPU counting-backend tests execute Linear/ReLU graph operations and compare
+  forward values, input/parameter gradients, SGD updates, sampled observations,
+  and cleanup against an independent eager model. PyTorch 2.12.1 is validated
+  locally; optimizing backends and compiled backward are not release claims.
+- Nightly versions, full-graph capture, CUDA compilation, and MPS compilation
+  are not validated.
 
 ## Supported Layers
 

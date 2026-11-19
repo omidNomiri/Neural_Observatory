@@ -24,14 +24,18 @@ def test_full_training_loop_memory_backend(tiny_model, tmp_path):
     with Observatory(tiny_model, config=cfg) as obs:
         run_training_steps(obs, tiny_model, n_steps=5)
         report = obs.report()
-        assert report.results, "Analyzers produced no results on a real training loop."
+        assert (
+            report.results
+        ), "Analyzers produced no results on a real training loop."
 
         total_before = obs.store.total_observations()
         obs.report()
         assert obs.store.total_observations() == total_before
 
         layer = obs.activation_collector.layer_names[0]
-        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [
+        assert sorted(
+            {o.step for o in obs.activation_collector.get(layer)}
+        ) == [
             0,
             1,
             2,
@@ -98,21 +102,59 @@ def test_inference_without_gradients_collects_activations_only(tiny_model):
         assert obs.gradient_collector.total_observations == 0
 
 
-@pytest.mark.filterwarnings("ignore:Dynamo does not know how to trace:UserWarning")
-def test_torch_compile_model_is_monitored(tiny_model):
+@pytest.mark.filterwarnings(
+    "ignore:Dynamo does not know how to trace:UserWarning"
+)
+@pytest.mark.parametrize(
+    "sample_rate, expected_steps", [(1, [0, 1, 2]), (2, [0, 2])]
+)
+@pytest.mark.parametrize("grad_enabled", [True, False])
+@pytest.mark.parametrize("compiler_api", ["public", "private"])
+def test_torch_compile_model_is_monitored(
+    tiny_model,
+    sample_rate,
+    expected_steps,
+    grad_enabled,
+    compiler_api,
+    monkeypatch,
+):
     compiled = torch.compile(tiny_model, backend="eager")
-    cfg = ObservatoryConfig(max_observations=100)
-    with Observatory(compiled, config=cfg) as obs:
+    if tuple(int(v) for v in torch.__version__.split(".")[:2]) < (2, 12):
+        with pytest.raises(RuntimeError, match=r"PyTorch.*2\.12.*eager"):
+            Observatory(compiled)
+        return
+    cfg = ObservatoryConfig(
+        max_observations=100,
+        activation_sample_rate=sample_rate,
+        gradient_sample_rate=sample_rate,
+    )
+    obs = Observatory(compiled, config=cfg)
+    with monkeypatch.context() as patch:
+        if compiler_api == "private":
+            patch.setattr(torch, "compiler", None, raising=False)
+        obs.watch()
+    try:
         assert obs._model is tiny_model, "Compiled wrapper was not unwrapped."
-        run_training_steps(obs, compiled, n_steps=3)
+        if grad_enabled:
+            run_training_steps(obs, compiled, n_steps=3)
+        else:
+            tiny_model.eval()
+            with torch.no_grad():
+                for step in range(3):
+                    obs.step(step=step, epoch=0)
+                    compiled(torch.randn(4, 8))
         report = obs.report()
         assert report.results
-        layer = obs.activation_collector.layer_names[0]
-        assert sorted({o.step for o in obs.activation_collector.get(layer)}) == [
-            0,
-            1,
-            2,
-        ]
+        assert set(obs.activation_collector.layer_names) == {"0", "1", "2"}
+        for layer in ("0", "1", "2"):
+            assert [
+                o.step for o in obs.activation_collector.get(layer)
+            ] == expected_steps
+            assert [o.step for o in obs.gradient_collector.get(layer)] == (
+                expected_steps if grad_enabled else []
+            )
+    finally:
+        obs.close()
 
 
 def test_stats_only_mode_round_trip(tiny_model, tmp_path):
@@ -127,7 +169,9 @@ def test_stats_only_mode_round_trip(tiny_model, tmp_path):
         run_training_steps(obs, tiny_model, n_steps=3)
         obs.report()
         layer = obs.activation_collector.layer_names[0]
-        assert all(o.values is None for o in obs.activation_collector.get(layer))
+        assert all(
+            o.values is None for o in obs.activation_collector.get(layer)
+        )
 
     reopened = SQLiteStore(db_path=db_path)
     stored = reopened.get("activations", layer)
@@ -137,10 +181,14 @@ def test_stats_only_mode_round_trip(tiny_model, tmp_path):
     reopened.close()
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA device not available")
+@pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="CUDA device not available"
+)
 def test_cuda_training_loop():
     device = torch.device("cuda")
-    model = nn.Sequential(nn.Linear(8, 16), nn.ReLU(), nn.Linear(16, 4)).to(device)
+    model = nn.Sequential(nn.Linear(8, 16), nn.ReLU(), nn.Linear(16, 4)).to(
+        device
+    )
     cfg = ObservatoryConfig(max_observations=100)
     with Observatory(model, config=cfg) as obs:
         criterion = nn.CrossEntropyLoss()

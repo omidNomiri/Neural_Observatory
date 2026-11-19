@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS observations (
     values_blob BLOB,
     UNIQUE (collection, layer_name, step, epoch, seq, run_id)
 );
-CREATE INDEX IF NOT EXISTS idx_col_layer ON observations (collection, layer_name);
+CREATE INDEX IF NOT EXISTS idx_col_layer
+    ON observations (collection, layer_name);
 CREATE INDEX IF NOT EXISTS idx_step      ON observations (step);
 """
 
@@ -46,7 +47,9 @@ class SQLiteStore(BaseStore):
     def __init__(self, db_path: Optional[str] = None) -> None:
         self._temp_path: Optional[Path] = None
         if db_path is None:
-            tmp = tempfile.NamedTemporaryFile(suffix=".observatory.db", delete=False)
+            tmp = tempfile.NamedTemporaryFile(
+                suffix=".observatory.db", delete=False
+            )
             tmp.close()
             db_path = tmp.name
             self._temp_path = Path(db_path)
@@ -61,56 +64,57 @@ class SQLiteStore(BaseStore):
         logger.info("SQLiteStore opened at %s", self._path)
 
     def _migrate_schema(self) -> None:
-        version = self._conn.execute("PRAGMA user_version").fetchone()[0]
-        if version >= _SCHEMA_VERSION:
-            return
+        with self._conn:
+            # Lock before reading to prevent stale state in concurrent opens.
+            self._conn.execute("BEGIN IMMEDIATE")
+            version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+            if version >= _SCHEMA_VERSION:
+                return
 
-        columns = {
-            row[1]
-            for row in self._conn.execute("PRAGMA table_info(observations)").fetchall()
-        }
-        if not columns:
-            self._conn.executescript(
-                f"BEGIN;\n{_SCHEMA}\nPRAGMA user_version = {_SCHEMA_VERSION};\nCOMMIT;"
-            )
-            return
-
-        # Older tables may lack seq and/or run_id. Missing columns default to
-        # 0 / ''; existing values are carried over so re-running this migration
-        # never discards run identities. The version stamp commits in the same
-        # transaction as the rebuild, so an interrupted migration is simply
-        # retried on the next open.
-        seq_source = "seq" if "seq" in columns else "0"
-        run_source = "run_id" if "run_id" in columns else "''"
-        self._conn.executescript(f"""
-            BEGIN;
-            CREATE TABLE observations_new (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                collection  TEXT    NOT NULL,
-                layer_name  TEXT    NOT NULL,
-                step        INTEGER NOT NULL,
-                epoch       INTEGER NOT NULL,
-                seq         INTEGER NOT NULL DEFAULT 0,
-                run_id      TEXT    NOT NULL DEFAULT '',
-                timestamp   REAL    NOT NULL,
-                stats       TEXT    NOT NULL,
-                metadata    TEXT    NOT NULL,
-                values_blob BLOB,
-                UNIQUE (collection, layer_name, step, epoch, seq, run_id)
-            );
-            INSERT OR IGNORE INTO observations_new
-                (collection, layer_name, step, epoch, seq, run_id,
-                 timestamp, stats, metadata, values_blob)
-            SELECT collection, layer_name, step, epoch, {seq_source}, {run_source},
-                   timestamp, stats, metadata, values_blob
-            FROM observations;
-            DROP TABLE observations;
-            ALTER TABLE observations_new RENAME TO observations;
-            CREATE INDEX idx_col_layer ON observations (collection, layer_name);
-            CREATE INDEX idx_step      ON observations (step);
-            PRAGMA user_version = {_SCHEMA_VERSION};
-            COMMIT;
-            """)
+            columns = {
+                row[1]
+                for row in self._conn.execute(
+                    "PRAGMA table_info(observations)"
+                ).fetchall()
+            }
+            script = _SCHEMA
+            if columns:
+                seq_source = "seq" if "seq" in columns else "0"
+                run_source = "run_id" if "run_id" in columns else "''"
+                script = f"""
+                    CREATE TABLE observations_new (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        collection  TEXT    NOT NULL,
+                        layer_name  TEXT    NOT NULL,
+                        step        INTEGER NOT NULL,
+                        epoch       INTEGER NOT NULL,
+                        seq         INTEGER NOT NULL DEFAULT 0,
+                        run_id      TEXT    NOT NULL DEFAULT '',
+                        timestamp   REAL    NOT NULL,
+                        stats       TEXT    NOT NULL,
+                        metadata    TEXT    NOT NULL,
+                        values_blob BLOB,
+                        UNIQUE (collection, layer_name, step, epoch,
+                                seq, run_id)
+                    );
+                    INSERT OR IGNORE INTO observations_new
+                        (collection, layer_name, step, epoch, seq, run_id,
+                         timestamp, stats, metadata, values_blob)
+                    SELECT collection, layer_name, step, epoch,
+                           {seq_source}, {run_source}, timestamp, stats,
+                           metadata, values_blob
+                    FROM observations;
+                    DROP TABLE observations;
+                    ALTER TABLE observations_new RENAME TO observations;
+                    CREATE INDEX idx_col_layer
+                        ON observations (collection, layer_name);
+                    CREATE INDEX idx_step ON observations (step);
+                    """
+            # executescript would commit and release the migration lock early.
+            for statement in script.split(";"):
+                if statement.strip():
+                    self._conn.execute(statement)
+            self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
 
     def put(
         self,
@@ -123,8 +127,8 @@ class SQLiteStore(BaseStore):
             self._conn.execute(
                 """
                 INSERT OR IGNORE INTO observations
-                    (collection, layer_name, step, epoch, seq, run_id, timestamp,
-                     stats, metadata, values_blob)
+                    (collection, layer_name, step, epoch, seq, run_id,
+                     timestamp, stats, metadata, values_blob)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -148,14 +152,14 @@ class SQLiteStore(BaseStore):
 
     def close(self) -> None:
         with self._lock:
-            if self._closed:
-                return
-            self._conn.commit()
-            self._conn.close()
-            self._closed = True
+            if not self._closed:
+                self._conn.commit()
+                self._conn.close()
+                self._closed = True
             # Only databases we created ourselves are ours to delete.
             if self._temp_path is not None:
                 self._temp_path.unlink(missing_ok=True)
+                self._temp_path = None
 
     def get(
         self,
@@ -167,7 +171,8 @@ class SQLiteStore(BaseStore):
         # Ordering spans the full identity key, so ties across epochs and
         # runs break deterministically.
         q = (
-            "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
+            "SELECT layer_name, step, epoch, seq, run_id, timestamp, "
+            "stats, metadata, values_blob "
             "FROM observations WHERE collection=? AND layer_name=? "
         )
         params: tuple = (collection, layer_name)
@@ -187,14 +192,15 @@ class SQLiteStore(BaseStore):
         self, collection: str, run_id: Optional[str] = None
     ) -> Dict[str, List[Observation]]:
         q = (
-            "SELECT layer_name, step, epoch, seq, run_id, timestamp, stats, metadata, values_blob "
+            "SELECT layer_name, step, epoch, seq, run_id, timestamp, "
+            "stats, metadata, values_blob "
             "FROM observations WHERE collection=? "
         )
         params: tuple = (collection,)
         if run_id is not None:
             q += "AND run_id=? "
             params = (*params, run_id)
-        # layer_name breaks the last ties so mapping key order is deterministic.
+        # Break remaining ties by layer_name for deterministic key order.
         q += "ORDER BY step, epoch, seq, run_id, layer_name"
         with self._lock:
             rows = self._conn.execute(q, params).fetchall()
@@ -208,16 +214,18 @@ class SQLiteStore(BaseStore):
     def layer_names(self, collection: str) -> List[str]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT DISTINCT layer_name FROM observations WHERE collection=?",
+                "SELECT DISTINCT layer_name FROM observations "
+                "WHERE collection=?",
                 (collection,),
             ).fetchall()
         return [r[0] for r in rows]
 
     def clear(self, collection: Optional[str] = None) -> None:
         with self._lock:
-            if collection:
+            if collection is not None:
                 self._conn.execute(
-                    "DELETE FROM observations WHERE collection=?", (collection,)
+                    "DELETE FROM observations WHERE collection=?",
+                    (collection,),
                 )
             else:
                 self._conn.execute("DELETE FROM observations")
