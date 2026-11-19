@@ -1,14 +1,18 @@
 """Regression tests for parameter snapshot scheduling and drift precision."""
 
+import numpy as np
+import pytest
 import torch
 from conftest import run_training_steps
 
 from neural_observatory import Observatory, ObservatoryConfig
-from neural_observatory.collectors.parameter_collector import ParameterCollector
+from neural_observatory.collectors.parameter_collector import (
+    ParameterCollector,
+)
 
 
 def test_repeated_report_does_not_resnapshot_parameters(tiny_model):
-    """report() at an already-snapshotted (step, epoch) must not duplicate params."""
+    """report() must not duplicate params at the same (step, epoch)."""
     cfg = ObservatoryConfig(parameter_sample_rate=1, max_observations=100)
     obs = Observatory(tiny_model, config=cfg)
     obs.watch()
@@ -41,7 +45,11 @@ def test_new_step_after_report_is_snapshotted(tiny_model):
 
     name = obs.parameter_collector.layer_names[0]
     steps = [o.step for o in obs.parameter_collector.get(name)]
-    assert steps == [0, 1, 5], f"Parameter snapshots lost or duplicated steps: {steps}"
+    assert steps == [
+        0,
+        1,
+        5,
+    ], f"Parameter snapshots lost or duplicated steps: {steps}"
 
 
 def test_float64_baseline_keeps_tiny_updates():
@@ -59,6 +67,27 @@ def test_float64_baseline_keeps_tiny_updates():
     ), "Baseline downcast erased a real float64 parameter update."
 
 
+@pytest.mark.parametrize(
+    "initial, current, expected",
+    [(300.0, 330.0, 0.1), (300.0, -300.0, 2.0), (60000.0, -60000.0, 2.0)],
+)
+def test_float16_drift_uses_widened_arithmetic(initial, current, expected):
+    pc = ParameterCollector(config=ObservatoryConfig(parameter_sample_rate=1))
+    weight = torch.full((4,), initial, dtype=torch.float16)
+
+    pc.collect("w", weight, step=0)
+    weight.fill_(current)
+    pc.collect("w", weight, step=1)
+
+    snapshots = pc.get("w")
+    assert all(snapshot.values.dtype == np.float16 for snapshot in snapshots)
+    np.testing.assert_array_equal(snapshots[0].values, [initial] * 4)
+    np.testing.assert_array_equal(snapshots[1].values, [current] * 4)
+    assert pc._baseline_values["w"].dtype == np.float16
+    np.testing.assert_array_equal(pc._baseline_values["w"], [initial] * 4)
+    assert pc.get_drift("w") == pytest.approx(expected)
+
+
 def test_clear_keeps_the_init_baseline():
     """drift_from_init stays measured against initialization after clear()."""
     pc = ParameterCollector(config=ObservatoryConfig(parameter_sample_rate=1))
@@ -72,7 +101,10 @@ def test_clear_keeps_the_init_baseline():
     pc.clear()
     pc.collect("w", weight, step=2)
 
-    assert len(pc.get("w")) == 1, "clear() did not empty the observation buffer."
     assert (
-        pc.get_drift("w") == drift_before
-    ), "clear() re-baselined; drift_from_init must stay relative to initialization."
+        len(pc.get("w")) == 1
+    ), "clear() did not empty the observation buffer."
+    assert pc.get_drift("w") == drift_before, (
+        "clear() re-baselined; drift_from_init must stay relative "
+        "to initialization."
+    )

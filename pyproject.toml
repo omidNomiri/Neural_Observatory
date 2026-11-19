@@ -7,7 +7,7 @@ name = "neural-observatory"
 version = "0.5.2"
 description = "Neural network observability toolkit for PyTorch"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "MIT"
 authors = [
     {name = "Omid Nomiri", email = "omidnomiri@gmail.com"}
@@ -17,7 +17,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -48,4 +47,5 @@ docs = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["tests*", "examples*", "docs*"]
+include = ["neural_observatory*"]
+namespaces = false

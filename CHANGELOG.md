@@ -91,7 +91,7 @@ Observatory.step() now safely guards against being called before watch() or afte
 - Comprehensive test suite for core framework components (LifecycleManager, EventBus, Registry, SQLiteStore).
 - Verified thread-safety and exception handling in core systems.
 
-## [0.5.2] - 2026-11-18
+## [0.5.2] - 2026-11-19
 
 ### Fixed
 
@@ -116,6 +116,14 @@ Observatory.step() now safely guards against being called before watch() or afte
 - Parameters: baselines keep their original dtype, so tiny float64 updates are no longer erased by a float32 downcast when computing drift.
 - Parameters: `clear()` keeps the initialization baselines, so `drift_from_init` stays measured against initialization after clearing observation buffers.
 - In-Memory store: eviction keeps the dedup key set bounded; `get(limit=0)` and `latest(0)` return empty results consistently across backends.
+- SQLite migration locks are acquired before reading schema state, preventing overlapping openers from discarding run identities.
+- Float16 parameter drift uses widened arithmetic while preserving snapshot and baseline dtypes.
+- Clearing an empty-named collection no longer clears unrelated collections.
+- Cleanup attempts remaining hooks after a removal failure, retains failed handles for retry, and closes storage even when hook removal fails. Failed context entry closes temporary storage.
+- Lifecycle: a `watch()` initialization failure deactivates monitoring even when the rollback hook removal also fails; the lifecycle is stopped in a `finally` path so a cleanup error cannot leave the Observatory falsely active.
+- SQLite: when a temporary database file could not be deleted on the first `close()`, a later `close()` retries the deletion instead of skipping cleanup permanently.
+- Collector exceptions are visible warnings rather than debug-only messages; training continues.
+- Package discovery excludes virtual environments, build directories, and validation outputs.
 
 ### Changed
 
@@ -126,9 +134,12 @@ Observatory.step() now safely guards against being called before watch() or afte
 - Storage: both backends accept an optional `run_id` filter in `get()`/`get_collection()` and treat negative limits as unbounded; SQLite orders by `(step, epoch, seq, run_id)`, with `layer_name` as the final tie-breaker in `get_collection()` for deterministic mapping key order.
 - README compatibility matrix no longer claims DDP support for SQLite/HTML Report; DDP is unsupported across the board.
 - README roadmap replaced with the phased version plan (0.5.x stabilization → Phase 1 model intelligence → Phase 2 neuron observatory → Phase 3 neuron intelligence).
-- All modules touched since 0.5.1 formatted with Black and isort (profile: black).
+- Compilation: monitored compiled wrappers require PyTorch >=2.12 with `fullgraph=False`; older wrappers raise a clear error instead of silently falling back to eager execution. Eager monitoring on older versions warns against compiling after hook attachment. No layer-level compilation or backend replacement is performed.
+- Python metadata now matches the supported 3.9–3.12 validation matrix (minimum Python 3.9).
+- Release-fix files are checked with Black, isort, and flake8; unrelated repository-wide formatting/type debt remains separate from release validation.
 
 ### Added
 
 - End-to-end training regression tests: full training loops on both storage backends, inplace ops, `no_grad` inference, `torch.compile`, stats-only mode, and round-trip persistence equality.
-- Regression suites for run identity, persistence identity/migration, store lifecycle, targets serialization, hook correctness, snapshot fidelity, concurrency safety, and parameter snapshot guards (129 tests passing, 1 CUDA-only skip).
+- Regression suites for run identity, persistence identity/migration, store lifecycle, targets serialization, hook correctness, snapshot fidelity, concurrency safety, and parameter snapshot guards.
+- Compile-contract tests count executed model operations, compare independent eager values/gradients/updates, and verify sampling and cleanup; unsupported runtimes exercise the explicit rejection contract rather than being skipped.

@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
-import torch
 import torch.nn as nn
 
 from ..core.configuration import ObservatoryConfig
@@ -63,7 +62,7 @@ class ParameterCollector(BaseCollector):
             norm_drift = 0.0
         else:
             drift = _true_drift(arr, baseline_vals)
-            norm_drift = _norm_drift(norm, baseline_norm)
+            norm_drift = _norm_drift(norm, cast(float, baseline_norm))
 
         stats["drift_from_init"] = drift
         stats["drift_from_init_norm"] = norm_drift
@@ -117,6 +116,11 @@ class ParameterCollector(BaseCollector):
 
 
 def _true_drift(current: np.ndarray, baseline: np.ndarray) -> float:
+    # Widen float16 arithmetic without downcasting float64 snapshots.
+    if current.dtype == np.float16:
+        current = current.astype(np.float32)
+    if baseline.dtype == np.float16:
+        baseline = baseline.astype(np.float32)
     base_norm = float(np.linalg.norm(baseline))
     if base_norm < 1e-12:
         return 0.0
